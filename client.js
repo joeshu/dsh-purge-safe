@@ -934,6 +934,7 @@ const productTheme = createProductTheme();
 			"restart.incomplete.patches": "还有 {failed} 项代码补丁没对上当前版本（#{ids}），不影响这段提示词",
 			"restart.incomplete.flash": "CMD 无感未钉入（{entry}）",
 			"restart.incomplete.host": "宿主源码还没写入清洗标记，重启桌面端后再点一次应用",
+			"restart.incomplete.writeDenied": "{reason} {remedy}",
 			"restart.later": "以后",
 			"group.prompt": "提示词",
 			"group.code": "代码",
@@ -1284,6 +1285,7 @@ const productTheme = createProductTheme();
 			"restart.incomplete.patches": "{failed} code patch(es) did not match this host (#{ids}). The prompt is unaffected",
 			"restart.incomplete.flash": "CMD silence not pinned ({entry})",
 			"restart.incomplete.host": "Host sources not marked yet — restart the desktop app, then apply again",
+			"restart.incomplete.writeDenied": "{reason} {remedy}",
 			"restart.later": "Later",
 			"group.prompt": "Prompt",
 			"group.code": "Code",
@@ -3739,7 +3741,14 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 									return;
 								}
 								const parts = [];
-								if (d.failed > 0) {
+								if (d.write_denied) {
+									parts.push(
+										tr("restart.incomplete.writeDenied", {
+											reason: String(d.write_denied.error || ""),
+											remedy: String(d.write_denied.remedy || ""),
+										}),
+									);
+								} else if (d.failed > 0) {
 									const ids = (d.failed_items || [])
 										.map((x) => x.id)
 										.filter((id) => id != null)
