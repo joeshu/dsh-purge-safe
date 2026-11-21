@@ -33,6 +33,7 @@
   --dshp-warn: var(--ui-warning);
   --dshp-warn-soft: var(--ui-warning-bg);
   --dshp-bad: var(--ui-danger);
+  --dshp-danger: var(--ui-danger);
   --dshp-danger-soft: var(--ui-danger-bg);
   --dshp-secondary: var(--ui-subtle);
   --dshp-detail: var(--ui-canvas);
@@ -73,6 +74,7 @@
   line-height:var(--ui-leading-body);
 }
 .dshp-dock-head{
+  color:var(--ui-text);
   min-height:46px;
   padding:0 var(--ui-space-4);
   background:var(--dshp-paper);
@@ -252,6 +254,23 @@
 .dshp-restart-card p{font-size:var(--ui-text-body);font-weight:400;line-height:var(--ui-leading-body)}
 .dshp-restart-card .dshp-btn{min-height:var(--dshp-control-height);padding:0 var(--ui-space-3);font-size:var(--ui-text-control);line-height:var(--ui-leading-control);color:var(--dshp-ink);background:var(--dshp-paper);border:1px solid var(--dshp-line);border-radius:var(--dshp-control-radius)}
 .dshp-restart-card .dshp-btn-primary,.dshp-restart-card .dshp-btn-primary:hover:not(:disabled){background:var(--dshp-primary);border-color:var(--dshp-primary);color:var(--dshp-primary-ink)}
+
+/* The portalled dialog owns its theme. Host dark-mode selectors must not
+ * pair light text with an explicitly light glass surface (or vice versa). */
+.dshp-restart-mask[data-theme] .dshp-restart-card {
+  color:var(--ui-text);
+}
+.dshp-restart-mask[data-theme] .dshp-restart-card .dshp-btn {
+  color:var(--ui-text);
+  background:var(--ui-subtle);
+  border-color:var(--ui-line-strong);
+}
+.dshp-restart-mask[data-theme] .dshp-restart-card .dshp-btn-primary,
+.dshp-restart-mask[data-theme] .dshp-restart-card .dshp-btn-primary:hover:not(:disabled) {
+  color:var(--ui-on-primary);
+  background:var(--ui-primary);
+  border-color:var(--ui-primary);
+}
 
 /* Clean page: compact status strip, balanced editor workspace, full-width list settings. */
 .dshp-root .dshp-panel.dshp-clean-page{
@@ -776,3 +795,53 @@
   .dshp-attn-capsule{right:8px;left:8px;width:auto}
   .dshp-attn-capsule:hover,.dshp-attn-capsule:focus-within{width:auto}
 }
+
+/* AttentionToast is portaled to body.  Keep the original product-shell theme
+ * scope on the portal host so its controls use the same type, radius, and
+ * semantic colors as the cleaning workspace and drill shell. */
+.dshp-attn-portal{display:contents;max-width:none;padding:0;background:transparent;color:var(--dshp-ink);font-family:var(--dshp-sans);font-size:var(--ui-text-body);line-height:var(--ui-leading-body)}
+.dshp-attn-portal .dshp-attn-capsule{
+  border-color:var(--dshp-line);
+  border-radius:var(--ui-radius-control);
+  background:var(--dshp-paper);
+  box-shadow:var(--ui-glass-shadow);
+  color:var(--dshp-ink);
+  font-family:var(--dshp-sans);
+  font-size:var(--ui-text-control);
+  line-height:var(--ui-leading-body);
+}
+.dshp-attn-portal .dshp-attn-capsule:hover,
+.dshp-attn-portal .dshp-attn-capsule:focus-within{
+  border-radius:var(--ui-radius-panel);
+  box-shadow:var(--ui-glass-shadow);
+}
+.dshp-attn-portal .dshp-attn-capsule.is-urgent,
+.dshp-attn-portal .dshp-attn-capsule.is-urgent:hover{border-color:var(--dshp-bad)}
+.dshp-attn-portal .dshp-attn-capsule.is-dragging:hover,
+.dshp-attn-portal .dshp-attn-capsule.is-dragging:focus-within,
+.dshp-attn-portal .dshp-attn-capsule.no-expand:hover,
+.dshp-attn-portal .dshp-attn-capsule.no-expand:focus-within{border-radius:var(--ui-radius-control);box-shadow:var(--ui-glass-shadow)}
+.dshp-attn-portal .dshp-attn-capsule-trigger{border-radius:var(--ui-radius-control);color:var(--dshp-ink);font:inherit}
+.dshp-attn-portal .dshp-attn-capsule-dot{background:var(--dshp-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dshp-primary) 22%,transparent)}
+.dshp-attn-portal .dshp-attn-capsule.is-urgent .dshp-attn-capsule-dot{background:var(--dshp-bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--dshp-bad) 22%,transparent)}
+.dshp-attn-portal .dshp-attn-capsule-title{font-size:var(--ui-text-control);font-weight:600}
+.dshp-attn-portal .dshp-attn-capsule-count{border-radius:var(--dshp-control-radius);background:var(--dshp-primary);color:var(--dshp-primary-ink);font-size:var(--ui-text-label)}
+.dshp-attn-portal .dshp-attn-capsule.is-urgent .dshp-attn-capsule-count{background:var(--dshp-bad);color:var(--ui-on-danger,var(--dshp-primary-ink))}
+.dshp-attn-portal .dshp-attn-capsule-x{border-radius:var(--dshp-control-radius);color:var(--dshp-mute);font-size:var(--ui-text-section)}
+.dshp-attn-portal .dshp-attn-capsule-x:hover{background:var(--dshp-hover);color:var(--dshp-ink)}
+.dshp-attn-portal .dshp-attn-capsule-list,
+.dshp-attn-portal .dshp-attn-capsule-row,
+.dshp-attn-portal .dshp-attn-capsule-rest,
+.dshp-attn-portal .dshp-attn-capsule-foot{border-color:var(--dshp-line)}
+.dshp-attn-portal .dshp-attn-capsule-stage,
+.dshp-attn-portal .dshp-attn-capsule-need{border-color:var(--dshp-line);border-radius:var(--dshp-control-radius);background:var(--dshp-fill);color:var(--dshp-mute);font-size:var(--ui-text-label)}
+.dshp-attn-portal .dshp-attn-capsule.is-urgent .dshp-attn-capsule-stage{color:var(--dshp-bad)}
+.dshp-attn-portal .dshp-attn-capsule-who{color:var(--dshp-ink);font-size:var(--ui-text-control)}
+.dshp-attn-portal .dshp-attn-capsule-reason,
+.dshp-attn-portal .dshp-attn-capsule-rest{color:var(--dshp-mute);font-size:var(--ui-text-helper)}
+.dshp-attn-portal .dshp-attn-capsule-go,
+.dshp-attn-portal .dshp-attn-capsule-later{min-height:var(--dshp-control-height);border-color:var(--dshp-line);border-radius:var(--dshp-control-radius);background:var(--dshp-paper);color:var(--dshp-ink);font:inherit;font-size:var(--ui-text-control)}
+.dshp-attn-portal .dshp-attn-capsule-go{border-color:var(--dshp-primary);background:var(--dshp-primary);color:var(--dshp-primary-ink)}
+.dshp-attn-portal .dshp-attn-capsule-go:hover,
+.dshp-attn-portal .dshp-attn-capsule-later:hover{border-color:var(--dshp-line-strong);background:var(--dshp-hover);color:var(--dshp-ink)}
+.dshp-attn-portal .dshp-attn-capsule-go:hover{background:var(--dshp-primary-hover);border-color:var(--dshp-primary-hover);color:var(--dshp-primary-ink)}

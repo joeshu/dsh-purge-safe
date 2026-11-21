@@ -30,7 +30,7 @@
     padding: 8px;
     overflow-x: auto;
     border-right: 0;
-    border-bottom: 1px solid #233c47;
+    border-bottom: 1px solid var(--rt-border);
   }
   .rt-embedded .rt-nav .rt-tab-group { flex: 1 0 auto; min-height: 34px; justify-content: center; gap: 8px; padding: 7px 10px; }
   .rt-embedded .rt-nav .rt-tab-group::before { display: none; }
@@ -76,7 +76,7 @@
     padding: 8px;
     overflow-x: auto;
     border-right: 0;
-    border-bottom: 1px solid #233c47;
+    border-bottom: 1px solid var(--rt-border);
   }
   .rt-full .rt-nav::before { display: none; content: none; }
   .rt-full .rt-nav .rt-tab-group { flex: 1 0 auto; min-height: 34px; justify-content: center; padding: 7px 10px; }

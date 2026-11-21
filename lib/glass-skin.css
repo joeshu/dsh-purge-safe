@@ -24,6 +24,7 @@
 :is(.rt-dock.rt-studio:not(.rt-embedded),.rt-full.rt-studio) {
   background-color:var(--ui-water-base) !important;
   background-image:var(--ui-water-backdrop) !important;
+  color:var(--ui-text) !important;
   background-size:auto,auto,1400px 1000px,auto,auto;
   background-position:center,center,center top,center,center;
   border-color:var(--ui-glass-edge);
@@ -186,7 +187,8 @@
 :is(.rt-dock.rt-studio,.rt-full.rt-studio) .rt-ov-score-feature {
   background:
     radial-gradient(ellipse at 0% 0%,rgb(157 222 255 / .19),transparent 68%),
-    linear-gradient(120deg,rgb(48 103 159 / .5),rgb(21 58 91 / .88));
+    linear-gradient(120deg,rgb(48 103 159 / .5),rgb(21 58 91 / .88)),
+    var(--ui-feature-surface);
   border-color:rgb(176 223 255 / .4);
   box-shadow:var(--ui-glass-shadow),inset 0 0 28px rgb(135 210 255 / .08);
   backdrop-filter:var(--ui-glass-blur);
@@ -459,4 +461,39 @@
   background:var(--ui-glass-wash),var(--ui-glass-dense);
   backdrop-filter:none;
   -webkit-backdrop-filter:none;
+}
+
+/* Fullscreen scroll tiles must not sample another viewport-sized live blur
+ * or dozens of nested card filters. Keep the water, tint, glint and borders;
+ * only bounded chrome and dialog overlays retain live backdrop sampling. */
+:is(
+  .dshp-dock.dshp-studio-dock[data-fullscreen=true],
+  .dshp-dock.dshp-studio-dock:fullscreen,
+  .rt-full.rt-studio,
+  .rt-dock.rt-studio[data-fullscreen=true]
+) {
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+}
+:is(
+  .dshp-dock.dshp-studio-dock[data-fullscreen=true],
+  .dshp-dock.dshp-studio-dock:fullscreen,
+  .rt-full.rt-studio,
+  .rt-dock.rt-studio[data-fullscreen=true]
+) :is(.rt-page-content[data-page],.dshp-studio-main),
+:is(
+  .dshp-dock.dshp-studio-dock[data-fullscreen=true],
+  .dshp-dock.dshp-studio-dock:fullscreen,
+  .rt-full.rt-studio,
+  .rt-dock.rt-studio[data-fullscreen=true]
+) :is(.rt-page-content[data-page],.dshp-studio-main) :where(*):not(:where(
+  .rt-modal,.rt-modal *,.rt-modal-box,.rt-modal-box *,
+  .rt-shot-zoom,.rt-shot-zoom *,
+  .dshp-modal-bg,.dshp-modal-bg *,
+  .dshp-auth-mask,.dshp-auth-mask *,
+  .dshp-restart-mask,.dshp-restart-mask *,
+  [role=dialog],[role=dialog] *
+)) {
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
 }

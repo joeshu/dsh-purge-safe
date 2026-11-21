@@ -22,6 +22,7 @@
   --ui-warning-bg:#fcf4e4;
   --ui-danger:#b63f3f;
   --ui-danger-bg:#fbeeed;
+  --ui-on-danger:#ffffff;
   --ui-radius-control:9px;
   --ui-radius-panel:16px;
   --ui-control-height:34px;
@@ -78,7 +79,7 @@
     --ui-line:#344253;--ui-line-strong:#52657b;--ui-text:#e9f0f8;--ui-muted:#a5b3c5;
     --ui-link:#9ac3ff;--ui-selected:#243c5c;--ui-selected-text:#bed9ff;--ui-nav:#141c26;
     --ui-success:#82c7a4;--ui-success-bg:#1d342b;--ui-warning:#dfbd78;--ui-warning-bg:#382f20;
-    --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;
+    --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;--ui-on-danger:#25161b;
     --ui-feature-surface:#18304c;--ui-feature-line:#3b5e86;--ui-feature-text:#f0f6ff;--ui-feature-muted:#aec7e8;--ui-feature-hover:#234568;
     --ui-panel-shadow:0 5px 16px rgb(0 0 0 / .14);
     --ui-glass-surface:rgb(22 48 66 / .68);
@@ -103,7 +104,7 @@
   --ui-line:#344253;--ui-line-strong:#52657b;--ui-text:#e9f0f8;--ui-muted:#a5b3c5;
   --ui-link:#9ac3ff;--ui-selected:#243c5c;--ui-selected-text:#bed9ff;--ui-nav:#141c26;
   --ui-success:#82c7a4;--ui-success-bg:#1d342b;--ui-warning:#dfbd78;--ui-warning-bg:#382f20;
-  --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;
+  --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;--ui-on-danger:#25161b;
   --ui-feature-surface:#18304c;--ui-feature-line:#3b5e86;--ui-feature-text:#f0f6ff;--ui-feature-muted:#aec7e8;--ui-feature-hover:#234568;
   --ui-panel-shadow:0 5px 16px rgb(0 0 0 / .14);
 
@@ -128,7 +129,7 @@
   --ui-line:#d8e1ed;--ui-line-strong:#a3b5cc;--ui-text:#1b2b40;--ui-muted:#43566d;
   --ui-link:#285fbb;--ui-selected:#e6effd;--ui-selected-text:#204f9b;--ui-nav:#ffffff;
   --ui-success:#237650;--ui-success-bg:#e9f5ee;--ui-warning:#8e641a;--ui-warning-bg:#fcf4e4;
-  --ui-danger:#b63f3f;--ui-danger-bg:#fbeeed;
+  --ui-danger:#b63f3f;--ui-danger-bg:#fbeeed;--ui-on-danger:#ffffff;
   --ui-feature-surface:#193858;--ui-feature-line:#45698e;--ui-feature-text:#f0f6ff;--ui-feature-muted:#bed2ea;--ui-feature-hover:#254c73;
   --ui-panel-shadow:0 4px 14px rgb(27 43 64 / .04);
 
@@ -222,4 +223,8 @@
 }
 
 /* Older skins cannot reset native widgets to a different scheme. */
+:is(.dshp-dock,.dshp-root,.rt-dock,.rt-full) select option {
+  background:var(--ui-surface);
+  color:var(--ui-text);
+}
 :is(.dshp-dock,.dshp-root,.dshp-auth-mask,.dshp-modal-bg,.dshp-restart-mask,.rt-dock,.rt-full){color-scheme:var(--ui-scheme)!important;}

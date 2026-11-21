@@ -301,7 +301,7 @@ function useWorkbenchFullscreen(React, elementRef, options = {}) {
 const PRODUCT_THEME_KEY = "dsh-purge-safe-ui-theme";
 const PRODUCT_THEME_EVENT = "dsh-purge-safe-ui-theme-change";
 const PRODUCT_THEME_MODES = Object.freeze(["dusk", "white", "system"]);
-const PRODUCT_THEME_DEFAULT = "dusk";
+const PRODUCT_THEME_DEFAULT = "system";
 
 function productThemeWindow(options) {
 	if (options && Object.prototype.hasOwnProperty.call(options, "window")) return options.window;
@@ -322,6 +322,23 @@ function productThemeMode(value) {
 	return PRODUCT_THEME_MODES.includes(value) ? value : "";
 }
 
+function productThemeMedia(options = {}) {
+	const win = productThemeWindow(options);
+	try {
+		if (!win || typeof win.matchMedia !== "function") return "";
+		const media = win.matchMedia("(prefers-color-scheme: dark)");
+		if (!media || typeof media.matches !== "boolean") return "";
+		return media.matches ? "dusk" : "white";
+	} catch { /* restricted webviews may throw */ }
+	return "";
+}
+
+function productThemeBooleanAttribute(target, name) {
+	if (!target || !target.hasAttribute?.(name)) return false;
+	const value = String(target.getAttribute?.(name) ?? "").trim().toLowerCase();
+	return !["false", "0", "off", "no"].includes(value);
+}
+
 function productThemeHost(options = {}) {
 	const win = productThemeWindow(options);
 	const doc = productThemeDocument(options, win);
@@ -329,7 +346,7 @@ function productThemeHost(options = {}) {
 	try {
 		for (const target of targets) {
 			if (!target) continue;
-			if (target.hasAttribute?.("data-ds-dark-theme") || target.hasAttribute?.("dark")) return "dusk";
+			if (productThemeBooleanAttribute(target, "data-ds-dark-theme") || productThemeBooleanAttribute(target, "dark")) return "dusk";
 			const attr = String(target.getAttribute?.("data-theme") || "").toLowerCase();
 			if (attr === "dusk" || attr === "dark") return "dusk";
 			if (attr === "white" || attr === "light") return "white";
@@ -345,15 +362,18 @@ function productThemeHost(options = {}) {
 			|| (computed && (computed.colorScheme || computed.getPropertyValue?.("color-scheme")))
 			|| "",
 		).toLowerCase();
-		if (scheme.includes("dark")) return "dusk";
-		if (scheme.includes("light")) return "white";
+		const schemes = scheme.split(/\s+/).filter(Boolean);
+		if (schemes.includes("dark") && schemes.includes("light")) {
+			const media = productThemeMedia({ ...options, window: win, document: doc });
+			if (media) return media;
+			return schemes[0] === "dark" ? "dusk" : "white";
+		}
+		if (schemes.includes("dark")) return "dusk";
+		if (schemes.includes("light")) return "white";
 	} catch { /* host inspection is best effort */ }
 
-	try {
-		if (win && typeof win.matchMedia === "function" && win.matchMedia("(prefers-color-scheme: dark)").matches) {
-			return "dusk";
-		}
-	} catch { /* restricted webviews may throw */ }
+	const media = productThemeMedia({ ...options, window: win, document: doc });
+	if (media) return media;
 	return "white";
 }
 
@@ -389,9 +409,10 @@ function createProductTheme(options = {}) {
 	};
 
 	const host = () => productThemeHost({ ...options, window: win, document: doc });
+	const system = () => productThemeMedia({ ...options, window: win, document: doc }) || host();
 	const read = () => {
 		const selected = mode();
-		return selected === "system" ? host() : selected;
+		return selected === "system" ? system() : selected;
 	};
 
 	const notify = () => {
@@ -533,6 +554,11 @@ const productTheme = createProductTheme();
 
 		const name = "dsh-purge-safe";
 		const inject = ["slots", "locale"];
+		function fullscreenPortalHost() {
+			return document.fullscreenElement
+				|| document.querySelector('.dshp-dock[data-fullscreen="true"],.rt-full[data-fullscreen="true"]')
+				|| document.body;
+		}
 		const NS = "settings.dsh-purge-safe";
 		let translate = (key) => key;
 		function useT() {
@@ -714,8 +740,48 @@ const productTheme = createProductTheme();
 			"dock.inSession": "dsh-purge-safe",
 			"dock.redteam": "红队模式",
 			"dock.full": "全面浏览",
+			"dock.exitFull": "退出全屏",
 			"dock.close": "收起",
 			"dock.unauthorized": "未授权",
+			"pane.tasks": "任务",
+			"pane.drill": "演练台",
+			"pane.map": "会话地图",
+			"pane.close": "收起分栏",
+			"pane.mode": "显示方式",
+			"pane.mode.float": "浮动窗",
+			"pane.mode.left": "靠左停靠",
+			"pane.mode.right": "靠右停靠",
+			"pane.clean": "清洗",
+			"pane.cleanHint": "打开清洗面板（补丁、卸载、外观都在这里）",
+			"pane.full": "全面浏览",
+			"pane.fullHint": "打开完整演练台",
+			"pane.dragHint": "按住这里拖动面板",
+			"pane.refresh": "刷新",
+			"pane.tasksOff": "共享任务板还没启用。进入红队模式后，主会话派发任务时会自动出现在这里。",
+			"pane.tasksEmpty": "当前没有共享任务。",
+			"pane.tasksFail": "任务板读取失败",
+			"pane.owner": "负责人",
+			"pane.unowned": "未分配",
+			"pane.stage.ended": "已完成",
+			"pane.stage.answer": "等人提供",
+			"pane.stage.review": "等人验收",
+			"pane.stage.blocked": "受阻",
+			"pane.stage.failed": "失败待处理",
+			"pane.stage.working": "在跑",
+			"pane.stage.queued": "排队中",
+			"pane.stage.idle": "空闲",
+			"pane.stage.unknown": "未接入",
+			"pane.orch.title": "编排设置",
+			"pane.orch.board": "共享任务板",
+			"pane.orch.always": "红队模式下恒开",
+			"pane.orch.boardHint": "建卡、派活、回报、阶段判定都在这一层；红队会话不需要单独打开。",
+			"pane.orch.stall": "卡住阈值（分钟，0 关闭）",
+			"pane.orch.stallHint": "认领后超过这么久没有任何回报，就标成「受阻」并把分钟数写在卡上。",
+			"pane.orch.error": "编排设置失败",
+			"pane.orch.save": "保存",
+			"pane.authorize": "先完成演练台授权",
+			"pane.mapMissing": "会话地图组件没加载出来。",
+			"pane.noSession": "还没有选中的会话。",
 			"attn.toast.title": "需要你决定",
 			"attn.toast.go": "填入输入框",
 			"attn.toast.later": "稍后",
@@ -757,9 +823,27 @@ const productTheme = createProductTheme();
 			"envGate.skipYes": "确认暂不配置",
 			"envGate.go": "去环境适配",
 			"theme.aria": "外观",
+				"theme.dark": "深色",
+				"theme.light": "浅色",
+				"theme.system": "跟随系统",
 			"theme.white": "白",
 			"theme.ink": "墨",
 			"purge.title": "补丁",
+				"clean.workspace": "清洗工作台",
+				"clean.description": "查看本机状态，集中管理补丁与配置。",
+				"clean.patches": "补丁明细",
+				"clean.patchesHint": "按分类查看适用项目和当前状态。",
+				"studio.nav.patches": "版本、补丁与备份",
+				"studio.nav.prompt": "编辑正文与恢复默认",
+				"studio.nav.servers": "维护主机和 IP 名单",
+				"studio.nav.rules": "工作区策略与规则模板",
+				"studio.nav.skills": "宿主目录与技能导入",
+				"clean.progress": "已写入补丁占比",
+				"clean.metricPatches": "补丁写入",
+				"clean.metricShim": "脚本状态",
+				"clean.metricBackup": "恢复备份",
+				"clean.promptHint": "编辑完整提示词，保存后按原有流程生效。",
+				"clean.serversHint": "维护自己的服务器名单与说明。",
 			"override.title": "提示词",
 			"own.title": "自己的服务器",
 			"own.hint": "每行一个 IP 或完整主机名。可以写成 账号@主机，账号只用来认出这种写法。主机名会连同它当时解析出的地址一起放行。不要写密钥、密码、网段。",
@@ -1065,8 +1149,48 @@ const productTheme = createProductTheme();
 			"dock.inSession": "dsh-purge-safe",
 			"dock.redteam": "Red team",
 			"dock.full": "Full view",
+			"dock.exitFull": "Exit fullscreen",
 			"dock.close": "Collapse",
 			"dock.unauthorized": "Unauthorized",
+			"pane.tasks": "Tasks",
+			"pane.drill": "Drill",
+			"pane.map": "Session map",
+			"pane.close": "Close pane",
+			"pane.mode": "Layout",
+			"pane.mode.float": "Floating",
+			"pane.mode.left": "Dock left",
+			"pane.mode.right": "Dock right",
+			"pane.clean": "Clean",
+			"pane.cleanHint": "Open the clean panel (patches, uninstall, appearance)",
+			"pane.full": "Full view",
+			"pane.fullHint": "Open the full drill console",
+			"pane.dragHint": "Drag here to move the pane",
+			"pane.refresh": "Refresh",
+			"pane.tasksOff": "The shared task board is not enabled yet. Once red-team mode runs and the main session dispatches tasks, they appear here.",
+			"pane.tasksEmpty": "No shared tasks right now.",
+			"pane.tasksFail": "Task board read failed",
+			"pane.owner": "Owner",
+			"pane.unowned": "Unassigned",
+			"pane.stage.ended": "Done",
+			"pane.stage.answer": "Needs input",
+			"pane.stage.review": "Needs review",
+			"pane.stage.blocked": "Blocked",
+			"pane.stage.failed": "Failed, needs you",
+			"pane.stage.working": "Running",
+			"pane.stage.queued": "Queued",
+			"pane.stage.idle": "Idle",
+			"pane.stage.unknown": "Not linked",
+			"pane.orch.title": "Orchestrator settings",
+			"pane.orch.board": "Shared task board",
+			"pane.orch.always": "Always on in red-team mode",
+			"pane.orch.boardHint": "Tasks, dispatch, reports and stage judgement all live here; no separate switch for red-team sessions.",
+			"pane.orch.stall": "Stall threshold (minutes, 0 = off)",
+			"pane.orch.stallHint": "With no report for this long after claiming, the card turns to Blocked and shows how long it has been.",
+			"pane.orch.error": "Orchestrator settings failed",
+			"pane.orch.save": "Save",
+			"pane.authorize": "Authorize the drill first",
+			"pane.mapMissing": "The session map component did not load.",
+			"pane.noSession": "No session selected yet.",
 			"attn.toast.title": "Needs your decision",
 			"attn.toast.go": "Fill the message",
 			"attn.toast.later": "Later",
@@ -1108,9 +1232,27 @@ const productTheme = createProductTheme();
 			"envGate.skipYes": "Continue without tools",
 			"envGate.go": "Open Env adapt",
 			"theme.aria": "Appearance",
+				"theme.dark": "Dark",
+				"theme.light": "Light",
+				"theme.system": "Follow system",
 			"theme.white": "Light",
 			"theme.ink": "Ink",
 			"purge.title": "Patches",
+				"clean.workspace": "Cleanup workspace",
+				"clean.description": "Review local status and manage patches and configuration.",
+				"clean.patches": "Patch details",
+				"clean.patchesHint": "Review applicable items and current state by category.",
+				"studio.nav.patches": "Version, patches & backup",
+				"studio.nav.prompt": "Edit body and restore default",
+				"studio.nav.servers": "Maintain host and IP list",
+				"studio.nav.rules": "Workspace policy and rule templates",
+				"studio.nav.skills": "Host directory and skill import",
+				"clean.progress": "Patches written",
+				"clean.metricPatches": "Patch status",
+				"clean.metricShim": "Script status",
+				"clean.metricBackup": "Recovery backup",
+				"clean.promptHint": "Edit the full prompt. Saved changes follow the existing activation flow.",
+				"clean.serversHint": "Maintain your own server list and notes.",
 			"override.title": "Prompt",
 			"own.title": "Own servers",
 			"own.hint": "One IP or exact hostname per line. account@host is accepted; the account only identifies that host. A hostname also allows the addresses it resolves to. Do not enter a key, a password, or a range.",
@@ -1547,7 +1689,6 @@ body[data-ds-dark-theme] .dshp-restart-card .dshp-btn-primary,body[data-ds-dark-
 
 .dshp-dock{position:fixed;top:12px;right:12px;z-index:10050;display:flex;flex-direction:column;width:var(--dshp-dock-w,620px);height:var(--dshp-dock-h,72vh);min-width:380px;min-height:320px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);box-sizing:border-box;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,var(--dshp-paper,#1c1c1c)) 52%,transparent);backdrop-filter:blur(22px) saturate(1.35);-webkit-backdrop-filter:blur(22px) saturate(1.35);border:1px solid color-mix(in srgb,var(--dsw-alias-border-l1,var(--dshp-line,#555)) 65%,transparent);border-radius:12px;box-shadow:0 18px 48px color-mix(in srgb,#000 30%,transparent),0 0 0 1px color-mix(in srgb,#fff 6%,transparent);pointer-events:auto;color:var(--dsw-alias-label-primary,var(--dshp-ink,#f2f2f2));overflow:visible}
 .dshp-dock[data-open="0"]{display:none}
-.dshp-launch{display:none!important}
 .dshp-dock-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid color-mix(in srgb,var(--dsw-alias-border-l1,var(--dshp-line,#555)) 55%,transparent);background:transparent;cursor:grab;user-select:none;touch-action:none;color:var(--dsw-alias-label-primary,var(--dshp-ink,#f2f2f2));border-radius:12px 12px 0 0}
 .dshp-dock-head:active{cursor:grabbing}
 .dshp-dock-head b{font-size:14px;font-weight:600;color:inherit;text-shadow:0 1px 0 color-mix(in srgb,#000 18%,transparent)}
@@ -1557,14 +1698,7 @@ body[data-ds-dark-theme] .dshp-restart-card .dshp-btn-primary,body[data-ds-dark-
 .dshp-dock-tab:hover{color:var(--dsw-alias-label-primary,var(--dshp-ink,#f2f2f2))}
 .dshp-dock-tab.on{color:var(--dsw-alias-label-primary,var(--dshp-ink,#f2f2f2));font-weight:600;border-bottom-color:var(--dsw-alias-brand-primary,#6dbf8c);background:transparent}
 .dshp-dock-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;background:transparent;border-radius:0 0 12px 12px}
-.dshp-dock-body .dshp-root{max-width:none;height:100%;flex:1;min-height:0;overflow:auto;background:transparent!important;--dshp-bg:transparent;--dshp-paper:color-mix(in srgb,var(--dshp-ink) 7%,transparent);--dshp-fill:color-mix(in srgb,var(--dshp-ink) 6%,transparent);--dshp-line:color-mix(in srgb,var(--dshp-ink) 20%,transparent);--dshp-accent-soft:color-mix(in srgb,var(--dshp-accent) 22%,transparent)}
-.dshp-dock-body .dshp-panel,.dshp-dock-body .dshp-metric,.dshp-dock-body .dshp-group,.dshp-dock-body .dshp-editor,.dshp-dock-body .dshp-active,.dshp-dock-body .dshp-ask,.dshp-dock-body .dshp-create,.dshp-dock-body .dshp-rulelist,.dshp-dock-body .dshp-table,.dshp-dock-body .dshp-ruleitem,.dshp-dock-body .dshp-cwd-list,.dshp-dock-body .dshp-cwd-item{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#f7f4ee) 74%,transparent)!important;border-color:color-mix(in srgb,var(--dsw-alias-brand-primary,#6d8f78) 32%,transparent)!important;color:var(--dshp-ink)!important;box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 32%,transparent);backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3)}
-.dshp-dock-body .dshp-field,.dshp-dock-body .dshp-area{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 88%,transparent)!important;color:var(--dshp-ink)!important;border-color:color-mix(in srgb,var(--dsw-alias-border-l1,#8a8478) 72%,transparent)!important}
-.dshp-dock-body select.dshp-field,.dshp-dock-body .dshp-field.dshp-ver{background:var(--dsw-alias-bg-layer-1,#fff)!important;color:var(--dshp-ink)!important;color-scheme:inherit}
-.dshp-dock[data-theme="white"] select.dshp-field option,.dshp-dock[data-theme="white"] .dshp-field.dshp-ver option{background:#fff;color:#16140f}
-.dshp-dock[data-theme="dusk"] select.dshp-field option,.dshp-dock[data-theme="dusk"] .dshp-field.dshp-ver option{background:#1b1d22;color:#f4f1ea}
-.dshp-dock-body .dshp-title,.dshp-dock-body .dshp-sub h4,.dshp-dock-body .dshp-group-h strong,.dshp-dock-body .dshp-metric b,.dshp-dock-body .dshp-rule-name{font-family:inherit;font-weight:650;letter-spacing:0;color:var(--dshp-ink)!important;text-shadow:none}
-.dshp-dock-body .dshp-mute,.dshp-dock-body .dshp-kicker,.dshp-dock-body .dshp-metric span,.dshp-dock-body .dshp-group-h em,.dshp-dock-body .dshp-count,.dshp-dock-body .dshp-rule-meta,.dshp-dock-body .dshp-hint{color:var(--dshp-mute)!important;font-weight:500;text-shadow:none}
+.dshp-dock-body .dshp-root{max-width:none;height:100%;flex:1;min-height:0;overflow:auto;background:transparent!important}
 .dshp-dock-body .rt-dock{position:relative;inset:auto;width:100%!important;height:100%;max-width:none!important;flex:1;min-height:0;min-width:0;display:flex!important;flex-direction:column;box-shadow:none;border:0;transform:none!important;opacity:1!important;pointer-events:auto!important;background:transparent!important}
 .dshp-dock-body .rt-grip{display:none!important}
 .dshp-dock-body .rt-embedded>.rt-head,.dshp-dock-body .rt-tabs,.dshp-dock-body .rt-foot{flex:none}
@@ -1576,7 +1710,6 @@ body[data-ds-dark-theme] .dshp-restart-card .dshp-btn-primary,body[data-ds-dark-
 .dshp-dock-body .rt-tabs{gap:2px;padding:6px 10px 0;flex-wrap:wrap}
 .dshp-dock-body .rt-tab{border-radius:0;border-bottom:2px solid transparent;margin-bottom:-1px;padding:8px 9px 7px;background:transparent;font-size:14px}
 .dshp-dock-body .rt-tab.on{border-bottom-color:var(--dsw-alias-brand-primary,#6d8f78);background:transparent;font-weight:650}
-.dshp-dock-body .rt-row:hover,.dshp-dock-body .rt-item:hover,.dshp-dock-body .rt-item.on,.dshp-dock-body .rt-seg:hover,.dshp-dock-body .rt-seg.on,.dshp-dock-body .rt-vrow:hover,.dshp-dock-body .rt-score-row:hover{background:var(--rt-surf-2)!important}
 body:not([data-ds-dark-theme]) .dshp-auth-modal{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fffcf7) 92%,transparent);color:var(--dsw-alias-label-primary,#1a1916);border-color:color-mix(in srgb,var(--dsw-alias-border-l1,#c9c3b6) 80%,transparent);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3)}
 body:not([data-ds-dark-theme]) .dshp-auth-legal{background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#f3f0e8) 90%,transparent);color:var(--dsw-alias-label-primary,#1a1916);border-color:color-mix(in srgb,var(--dsw-alias-border-l1,#c9c3b6) 80%,transparent)}
 body:not([data-ds-dark-theme]) .dshp-auth-warn{background:color-mix(in srgb,#f5e6c8 88%,transparent);color:#6b4a10}
@@ -1611,25 +1744,8 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 .dshp-hero-chip-btn.on,.dshp-tab-btn.on{border-color:color-mix(in srgb,currentColor 38%,transparent)}
 /* 玻璃跟随宿主颜色。字重和底的不透明度分开：壳透，字坐在更实的一层上。 */
 .dshp-dock{font-family:"Segoe UI","Microsoft YaHei UI","PingFang SC","Noto Sans SC",system-ui,sans-serif;font-size:14px;line-height:1.6;font-weight:500;-webkit-font-smoothing:antialiased;text-shadow:none}
-.dshp-dock[data-theme="white"],.dshp-dock[data-theme="dusk"]{background:linear-gradient(165deg,color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 50%,transparent),color-mix(in srgb,var(--dsw-alias-brand-primary,#6d8f78) 18%,transparent) 46%,color-mix(in srgb,var(--dsw-alias-bg-layer-2,#fff) 28%,transparent))!important;backdrop-filter:blur(26px) saturate(1.45)!important;-webkit-backdrop-filter:blur(26px) saturate(1.45)!important;color:var(--dshp-ink)!important;border:1px solid color-mix(in srgb,var(--dsw-alias-brand-primary,#6d8f78) 36%,transparent)!important;box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 42%,transparent),0 18px 44px color-mix(in srgb,#000 18%,transparent)!important}
-.dshp-dock[data-theme="dusk"]{--dshp-ink:var(--dsw-alias-label-primary,#f4f1ea);--dshp-mute:color-mix(in srgb,var(--dsw-alias-label-primary,#f4f1ea) 84%,var(--dsw-alias-label-secondary,#c9c3b8))}
-.dshp-dock[data-theme="white"]{--dshp-ink:var(--dsw-alias-label-primary,#16140f);--dshp-mute:color-mix(in srgb,var(--dsw-alias-label-primary,#16140f) 76%,var(--dsw-alias-label-secondary,#3c362e))}
-.dshp-dock .dshp-dock-head,.dshp-dock .dshp-dock-tabs{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,transparent) 28%,transparent)!important;color:var(--dshp-ink)!important}
-.dshp-dock .dshp-dock-head,.dshp-dock .dshp-dock-head b,.dshp-dock .dshp-dock-head button,.dshp-dock .dshp-dock-tab,.dshp-dock .dshp-dock-tab.on{color:var(--dshp-ink)!important;text-shadow:none!important;font-weight:600}
 .dshp-dock .dshp-dock-tab{font-size:14px}
-.dshp-dock .dshp-dock-tab.on{border-bottom-color:var(--dsw-alias-brand-primary,#6d8f78)!important}
-.dshp-dock-body .rt-dock{font-size:14px!important;line-height:1.6!important;font-weight:500!important;color:var(--dshp-ink)!important;--rt-ink:var(--dshp-ink);--rt-mute:var(--dshp-mute);--rt-surf:color-mix(in srgb,var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-layer-1,#fff)) 40%,transparent);--rt-surf-2:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 62%,transparent);--rt-line:color-mix(in srgb,var(--dsw-alias-brand-primary,#6d8f78) 30%,transparent)}
-.dshp-dock-body .rt-title,.dshp-dock-body .rt-tab,.dshp-dock-body .rt-tab.on,.dshp-dock-body .rt-card,.dshp-dock-body .rt-card h4,.dshp-dock-body .rt-row,.dshp-dock-body .rt-vrow,.dshp-dock-body .rt-kv,.dshp-dock-body .rt-kv b,.dshp-dock-body .rt-kv span,.dshp-dock-body .rt-mono,.dshp-dock-body .rt-empty,.dshp-dock-body .rt-foot,.dshp-dock-body .rt-tag,.dshp-dock-body .rt-item,.dshp-dock-body .rt-item-name,.dshp-dock-body .rt-item-desc,.dshp-dock-body .rt-sec-sub,.dshp-dock-body .rt-kb-sub,.dshp-dock-body .rt-seg-cidr,.dshp-dock-body .rt-seg-meta,.dshp-dock-body .rt-section,.dshp-dock-body .rt-note,.dshp-dock-body .rt-hint{color:var(--dshp-ink)!important;text-shadow:none!important;opacity:1!important}
-.dshp-dock-body .rt-tab,.dshp-dock-body .rt-foot,.dshp-dock-body .rt-empty,.dshp-dock-body .rt-item-desc,.dshp-dock-body .rt-kb-sub,.dshp-dock-body .rt-kv span,.dshp-dock-body .rt-tag,.dshp-dock-body .rt-sec-sub{color:var(--dshp-mute)!important}
-.dshp-dock-body .rt-card,.dshp-dock-body .rt-pane,.dshp-dock-body .rt-side,.dshp-dock-body .rt-table,.dshp-dock-body .rt-toolbar,.dshp-dock-body .rt-embedded>.rt-head,.dshp-dock-body .rt-tabs{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 72%,transparent)!important;border-color:color-mix(in srgb,var(--dsw-alias-brand-primary,#6d8f78) 28%,transparent)!important;color:var(--dshp-ink)!important;box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 26%,transparent)!important;backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3)}
-.dshp-dock-body .rt-btn,.dshp-dock-body .rt-input,.dshp-dock-body .rt-eng-select,.dshp-dock-body textarea.rt-input{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 90%,transparent)!important;color:var(--dshp-ink)!important;border-color:color-mix(in srgb,var(--dsw-alias-border-l1,#888) 70%,transparent)!important}
-.dshp-dock-body .rt-btn-primary{background:var(--dsw-alias-brand-primary,#3f6b52)!important;border-color:var(--dsw-alias-brand-primary,#3f6b52)!important;color:#fff!important}
-.dshp-dock[data-theme="white"] .dshp-dock-body .rt-eng-select option,.dshp-dock[data-theme="white"] .dshp-dock-body .rt-input option{background:#fff;color:#16140f}
-.dshp-dock[data-theme="dusk"] .dshp-dock-body .rt-eng-select option,.dshp-dock[data-theme="dusk"] .dshp-dock-body .rt-input option{background:#1b1d22;color:#f4f1ea}
 .dshp-dock-body .rt-err{font-weight:650}
-.dshp-dock[data-theme="white"] .dshp-dock-body .rt-err{color:#9a3434!important}
-.dshp-dock[data-theme="dusk"] .dshp-dock-body .rt-err{color:#f0b4b4!important}
-.dshp-dock-body .rt-rep-http,.dshp-dock-body pre{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 84%,transparent)!important;color:var(--dshp-ink)!important;border:1px solid color-mix(in srgb,var(--dsw-alias-border-l1,#888) 60%,transparent)!important}
 /* __DSH_PRODUCT_SHELL_BEGIN__ */
 /* One product palette for the outer frame, clean workspace, drill and dialogs.
  * Component styles consume these tokens; they do not define local palettes. */
@@ -1655,6 +1771,7 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
   --ui-warning-bg:#fcf4e4;
   --ui-danger:#b63f3f;
   --ui-danger-bg:#fbeeed;
+  --ui-on-danger:#ffffff;
   --ui-radius-control:9px;
   --ui-radius-panel:16px;
   --ui-control-height:34px;
@@ -1711,7 +1828,7 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
     --ui-line:#344253;--ui-line-strong:#52657b;--ui-text:#e9f0f8;--ui-muted:#a5b3c5;
     --ui-link:#9ac3ff;--ui-selected:#243c5c;--ui-selected-text:#bed9ff;--ui-nav:#141c26;
     --ui-success:#82c7a4;--ui-success-bg:#1d342b;--ui-warning:#dfbd78;--ui-warning-bg:#382f20;
-    --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;
+    --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;--ui-on-danger:#25161b;
     --ui-feature-surface:#18304c;--ui-feature-line:#3b5e86;--ui-feature-text:#f0f6ff;--ui-feature-muted:#aec7e8;--ui-feature-hover:#234568;
     --ui-panel-shadow:0 5px 16px rgb(0 0 0 / .14);
     --ui-glass-surface:rgb(22 48 66 / .68);
@@ -1736,7 +1853,7 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
   --ui-line:#344253;--ui-line-strong:#52657b;--ui-text:#e9f0f8;--ui-muted:#a5b3c5;
   --ui-link:#9ac3ff;--ui-selected:#243c5c;--ui-selected-text:#bed9ff;--ui-nav:#141c26;
   --ui-success:#82c7a4;--ui-success-bg:#1d342b;--ui-warning:#dfbd78;--ui-warning-bg:#382f20;
-  --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;
+  --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;--ui-on-danger:#25161b;
   --ui-feature-surface:#18304c;--ui-feature-line:#3b5e86;--ui-feature-text:#f0f6ff;--ui-feature-muted:#aec7e8;--ui-feature-hover:#234568;
   --ui-panel-shadow:0 5px 16px rgb(0 0 0 / .14);
 
@@ -1761,7 +1878,7 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
   --ui-line:#d8e1ed;--ui-line-strong:#a3b5cc;--ui-text:#1b2b40;--ui-muted:#43566d;
   --ui-link:#285fbb;--ui-selected:#e6effd;--ui-selected-text:#204f9b;--ui-nav:#ffffff;
   --ui-success:#237650;--ui-success-bg:#e9f5ee;--ui-warning:#8e641a;--ui-warning-bg:#fcf4e4;
-  --ui-danger:#b63f3f;--ui-danger-bg:#fbeeed;
+  --ui-danger:#b63f3f;--ui-danger-bg:#fbeeed;--ui-on-danger:#ffffff;
   --ui-feature-surface:#193858;--ui-feature-line:#45698e;--ui-feature-text:#f0f6ff;--ui-feature-muted:#bed2ea;--ui-feature-hover:#254c73;
   --ui-panel-shadow:0 4px 14px rgb(27 43 64 / .04);
 
@@ -1855,6 +1972,10 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 }
 
 /* Older skins cannot reset native widgets to a different scheme. */
+:is(.dshp-dock,.dshp-root,.rt-dock,.rt-full) select option {
+  background:var(--ui-surface);
+  color:var(--ui-text);
+}
 :is(.dshp-dock,.dshp-root,.dshp-auth-mask,.dshp-modal-bg,.dshp-restart-mask,.rt-dock,.rt-full){color-scheme:var(--ui-scheme)!important;}
 
 
@@ -1893,6 +2014,7 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
   --dshp-warn: var(--ui-warning);
   --dshp-warn-soft: var(--ui-warning-bg);
   --dshp-bad: var(--ui-danger);
+  --dshp-danger: var(--ui-danger);
   --dshp-danger-soft: var(--ui-danger-bg);
   --dshp-secondary: var(--ui-subtle);
   --dshp-detail: var(--ui-canvas);
@@ -1933,6 +2055,7 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
   line-height:var(--ui-leading-body);
 }
 .dshp-dock-head{
+  color:var(--ui-text);
   min-height:46px;
   padding:0 var(--ui-space-4);
   background:var(--dshp-paper);
@@ -2112,6 +2235,23 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 .dshp-restart-card p{font-size:var(--ui-text-body);font-weight:400;line-height:var(--ui-leading-body)}
 .dshp-restart-card .dshp-btn{min-height:var(--dshp-control-height);padding:0 var(--ui-space-3);font-size:var(--ui-text-control);line-height:var(--ui-leading-control);color:var(--dshp-ink);background:var(--dshp-paper);border:1px solid var(--dshp-line);border-radius:var(--dshp-control-radius)}
 .dshp-restart-card .dshp-btn-primary,.dshp-restart-card .dshp-btn-primary:hover:not(:disabled){background:var(--dshp-primary);border-color:var(--dshp-primary);color:var(--dshp-primary-ink)}
+
+/* The portalled dialog owns its theme. Host dark-mode selectors must not
+ * pair light text with an explicitly light glass surface (or vice versa). */
+.dshp-restart-mask[data-theme] .dshp-restart-card {
+  color:var(--ui-text);
+}
+.dshp-restart-mask[data-theme] .dshp-restart-card .dshp-btn {
+  color:var(--ui-text);
+  background:var(--ui-subtle);
+  border-color:var(--ui-line-strong);
+}
+.dshp-restart-mask[data-theme] .dshp-restart-card .dshp-btn-primary,
+.dshp-restart-mask[data-theme] .dshp-restart-card .dshp-btn-primary:hover:not(:disabled) {
+  color:var(--ui-on-primary);
+  background:var(--ui-primary);
+  border-color:var(--ui-primary);
+}
 
 /* Clean page: compact status strip, balanced editor workspace, full-width list settings. */
 .dshp-root .dshp-panel.dshp-clean-page{
@@ -2637,6 +2777,56 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
   .dshp-attn-capsule:hover,.dshp-attn-capsule:focus-within{width:auto}
 }
 
+/* AttentionToast is portaled to body.  Keep the original product-shell theme
+ * scope on the portal host so its controls use the same type, radius, and
+ * semantic colors as the cleaning workspace and drill shell. */
+.dshp-attn-portal{display:contents;max-width:none;padding:0;background:transparent;color:var(--dshp-ink);font-family:var(--dshp-sans);font-size:var(--ui-text-body);line-height:var(--ui-leading-body)}
+.dshp-attn-portal .dshp-attn-capsule{
+  border-color:var(--dshp-line);
+  border-radius:var(--ui-radius-control);
+  background:var(--dshp-paper);
+  box-shadow:var(--ui-glass-shadow);
+  color:var(--dshp-ink);
+  font-family:var(--dshp-sans);
+  font-size:var(--ui-text-control);
+  line-height:var(--ui-leading-body);
+}
+.dshp-attn-portal .dshp-attn-capsule:hover,
+.dshp-attn-portal .dshp-attn-capsule:focus-within{
+  border-radius:var(--ui-radius-panel);
+  box-shadow:var(--ui-glass-shadow);
+}
+.dshp-attn-portal .dshp-attn-capsule.is-urgent,
+.dshp-attn-portal .dshp-attn-capsule.is-urgent:hover{border-color:var(--dshp-bad)}
+.dshp-attn-portal .dshp-attn-capsule.is-dragging:hover,
+.dshp-attn-portal .dshp-attn-capsule.is-dragging:focus-within,
+.dshp-attn-portal .dshp-attn-capsule.no-expand:hover,
+.dshp-attn-portal .dshp-attn-capsule.no-expand:focus-within{border-radius:var(--ui-radius-control);box-shadow:var(--ui-glass-shadow)}
+.dshp-attn-portal .dshp-attn-capsule-trigger{border-radius:var(--ui-radius-control);color:var(--dshp-ink);font:inherit}
+.dshp-attn-portal .dshp-attn-capsule-dot{background:var(--dshp-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dshp-primary) 22%,transparent)}
+.dshp-attn-portal .dshp-attn-capsule.is-urgent .dshp-attn-capsule-dot{background:var(--dshp-bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--dshp-bad) 22%,transparent)}
+.dshp-attn-portal .dshp-attn-capsule-title{font-size:var(--ui-text-control);font-weight:600}
+.dshp-attn-portal .dshp-attn-capsule-count{border-radius:var(--dshp-control-radius);background:var(--dshp-primary);color:var(--dshp-primary-ink);font-size:var(--ui-text-label)}
+.dshp-attn-portal .dshp-attn-capsule.is-urgent .dshp-attn-capsule-count{background:var(--dshp-bad);color:var(--ui-on-danger,var(--dshp-primary-ink))}
+.dshp-attn-portal .dshp-attn-capsule-x{border-radius:var(--dshp-control-radius);color:var(--dshp-mute);font-size:var(--ui-text-section)}
+.dshp-attn-portal .dshp-attn-capsule-x:hover{background:var(--dshp-hover);color:var(--dshp-ink)}
+.dshp-attn-portal .dshp-attn-capsule-list,
+.dshp-attn-portal .dshp-attn-capsule-row,
+.dshp-attn-portal .dshp-attn-capsule-rest,
+.dshp-attn-portal .dshp-attn-capsule-foot{border-color:var(--dshp-line)}
+.dshp-attn-portal .dshp-attn-capsule-stage,
+.dshp-attn-portal .dshp-attn-capsule-need{border-color:var(--dshp-line);border-radius:var(--dshp-control-radius);background:var(--dshp-fill);color:var(--dshp-mute);font-size:var(--ui-text-label)}
+.dshp-attn-portal .dshp-attn-capsule.is-urgent .dshp-attn-capsule-stage{color:var(--dshp-bad)}
+.dshp-attn-portal .dshp-attn-capsule-who{color:var(--dshp-ink);font-size:var(--ui-text-control)}
+.dshp-attn-portal .dshp-attn-capsule-reason,
+.dshp-attn-portal .dshp-attn-capsule-rest{color:var(--dshp-mute);font-size:var(--ui-text-helper)}
+.dshp-attn-portal .dshp-attn-capsule-go,
+.dshp-attn-portal .dshp-attn-capsule-later{min-height:var(--dshp-control-height);border-color:var(--dshp-line);border-radius:var(--dshp-control-radius);background:var(--dshp-paper);color:var(--dshp-ink);font:inherit;font-size:var(--ui-text-control)}
+.dshp-attn-portal .dshp-attn-capsule-go{border-color:var(--dshp-primary);background:var(--dshp-primary);color:var(--dshp-primary-ink)}
+.dshp-attn-portal .dshp-attn-capsule-go:hover,
+.dshp-attn-portal .dshp-attn-capsule-later:hover{border-color:var(--dshp-line-strong);background:var(--dshp-hover);color:var(--dshp-ink)}
+.dshp-attn-portal .dshp-attn-capsule-go:hover{background:var(--dshp-primary-hover);border-color:var(--dshp-primary-hover);color:var(--dshp-primary-ink)}
+
 
 /* Glass is a material layer; layout, semantic colours and interactions stay
  * owned by the existing components. No host content is used as a backdrop. */
@@ -2664,6 +2854,7 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 :is(.rt-dock.rt-studio:not(.rt-embedded),.rt-full.rt-studio) {
   background-color:var(--ui-water-base) !important;
   background-image:var(--ui-water-backdrop) !important;
+  color:var(--ui-text) !important;
   background-size:auto,auto,1400px 1000px,auto,auto;
   background-position:center,center,center top,center,center;
   border-color:var(--ui-glass-edge);
@@ -2826,7 +3017,8 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 :is(.rt-dock.rt-studio,.rt-full.rt-studio) .rt-ov-score-feature {
   background:
     radial-gradient(ellipse at 0% 0%,rgb(157 222 255 / .19),transparent 68%),
-    linear-gradient(120deg,rgb(48 103 159 / .5),rgb(21 58 91 / .88));
+    linear-gradient(120deg,rgb(48 103 159 / .5),rgb(21 58 91 / .88)),
+    var(--ui-feature-surface);
   border-color:rgb(176 223 255 / .4);
   box-shadow:var(--ui-glass-shadow),inset 0 0 28px rgb(135 210 255 / .08);
   backdrop-filter:var(--ui-glass-blur);
@@ -3101,6 +3293,41 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
   -webkit-backdrop-filter:none;
 }
 
+/* Fullscreen scroll tiles must not sample another viewport-sized live blur
+ * or dozens of nested card filters. Keep the water, tint, glint and borders;
+ * only bounded chrome and dialog overlays retain live backdrop sampling. */
+:is(
+  .dshp-dock.dshp-studio-dock[data-fullscreen=true],
+  .dshp-dock.dshp-studio-dock:fullscreen,
+  .rt-full.rt-studio,
+  .rt-dock.rt-studio[data-fullscreen=true]
+) {
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+}
+:is(
+  .dshp-dock.dshp-studio-dock[data-fullscreen=true],
+  .dshp-dock.dshp-studio-dock:fullscreen,
+  .rt-full.rt-studio,
+  .rt-dock.rt-studio[data-fullscreen=true]
+) :is(.rt-page-content[data-page],.dshp-studio-main),
+:is(
+  .dshp-dock.dshp-studio-dock[data-fullscreen=true],
+  .dshp-dock.dshp-studio-dock:fullscreen,
+  .rt-full.rt-studio,
+  .rt-dock.rt-studio[data-fullscreen=true]
+) :is(.rt-page-content[data-page],.dshp-studio-main) :where(*):not(:where(
+  .rt-modal,.rt-modal *,.rt-modal-box,.rt-modal-box *,
+  .rt-shot-zoom,.rt-shot-zoom *,
+  .dshp-modal-bg,.dshp-modal-bg *,
+  .dshp-auth-mask,.dshp-auth-mask *,
+  .dshp-restart-mask,.dshp-restart-mask *,
+  [role=dialog],[role=dialog] *
+)) {
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+}
+
 
 /* Workspace layout: one navigation rail, one context row, then page content.
  * Compact mode is measured from the actual plugin width, including full views. */
@@ -3263,6 +3490,134 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 }
 
 /* __DSH_PRODUCT_SHELL_END__ */
+/* Task board / drill / clean side pane. Keep this outside the generated shell marker so
+   build-client.mjs refreshes product tokens without dropping these rules. */
+/* 三种形态：float 浮在正文上（可拖动、可缩放）；left 贴左边占满整高；right 贴右边占满整高。
+   形态只由 data-pane-mode 决定，宽度/位置走内联样式，避免和 .dshp-dock 的浮动窗默认值打架。 */
+.dshp-dock.dshp-pane{position:fixed;z-index:10060;display:flex;flex-direction:column;box-sizing:border-box;
+  background:var(--ui-surface,var(--dshp-paper,#fff));color:var(--ui-text,var(--dshp-ink,#1b2b40));overflow:hidden;
+  min-width:300px;max-width:calc(100vw - 16px);
+  /* 底座是玻璃面板：这里必须去掉实时模糊，否则既糊字又给 position:fixed 的地图全屏造包含块。 */
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;contain:none}
+/* 侧栏里也内嵌演练台/会话地图，把这层需要的 --rt-* 全部映射到当前主题的 --ui-*，
+   否则浮动/停靠面板里的地图会退回硬编码浅色值（深色模式下白底黑字）。
+   .dshp-pane-map 是裸 SessionMap 的宿主，不在 .rt-dock 里，必须单独接一遍。 */
+.dshp-dock.dshp-pane,.dshp-pane-map{
+  --rt-bg-base:var(--ui-canvas);--rt-bg-surface:var(--ui-surface);--rt-bg-subtle:var(--ui-subtle);
+  --rt-bg-raised:var(--ui-hover);--rt-rail:var(--ui-surface);--rt-bg-elevated:var(--ui-surface);
+  --rt-border:var(--ui-line);--rt-border-strong:var(--ui-line-strong);
+  --rt-ink:var(--ui-text);--rt-muted:var(--ui-muted);--rt-mute:var(--ui-muted);--rt-ink-soft:var(--ui-muted);
+  --rt-accent:var(--ui-link);--rt-primary:var(--ui-primary);--rt-accent-strong:var(--ui-primary-hover);
+  --rt-accent-soft:var(--ui-selected);--rt-accent-ink:var(--ui-on-primary);
+  --rt-success:var(--ui-success);--rt-success-bg:var(--ui-success-bg);
+  --rt-warning:var(--ui-warning);--rt-warning-bg:var(--ui-warning-bg);
+  --rt-danger:var(--ui-danger);--rt-danger-bg:var(--ui-danger-bg);
+  --rt-shadow:var(--ui-panel-shadow);
+  --dsw-alias-bg-base:var(--rt-bg-base);--dsw-alias-bg-layer-1:var(--rt-bg-surface);--dsw-alias-bg-layer-2:var(--rt-bg-subtle);
+  --dsw-alias-label-primary:var(--rt-ink);--dsw-alias-label-secondary:var(--rt-muted);
+  --dsw-alias-border-l1:var(--rt-border);--dsw-alias-brand-primary:var(--rt-accent);
+  color-scheme:var(--ui-scheme);background:var(--ui-surface);color:var(--ui-text)}
+.dshp-dock.dshp-pane[data-pane-mode="left"]{top:0;left:0;bottom:0;right:auto;height:auto;min-height:0;max-height:none;border-radius:0;
+  border-right:1px solid var(--ui-line,var(--dshp-line,#d8e1ed));box-shadow:12px 0 32px rgb(0 0 0 / .14)}
+.dshp-dock.dshp-pane[data-pane-mode="right"]{top:0;right:0;bottom:0;left:auto;height:auto;min-height:0;max-height:none;border-radius:0;
+  border-left:1px solid var(--ui-line,var(--dshp-line,#d8e1ed));box-shadow:-12px 0 32px rgb(0 0 0 / .14)}
+.dshp-dock.dshp-pane[data-pane-mode="float"]{border-radius:12px;
+  border:1px solid var(--ui-line,var(--dshp-line,#d8e1ed));
+  box-shadow:0 18px 48px rgb(0 0 0 / .22),0 0 0 1px rgb(255 255 255 / .05)}
+.dshp-dock.dshp-pane[data-pane-mode="float"] .dshp-pane-head{cursor:grab;user-select:none;touch-action:none}
+.dshp-dock.dshp-pane[data-pane-mode="float"] .dshp-pane-head:active{cursor:grabbing}
+/* 形态切换：三枚小钮，塞在标题行里，不额外占一条。 */
+.dshp-pane-modes{display:inline-flex;flex:0 0 auto;align-items:center;gap:2px;padding:2px;
+  border:1px solid var(--ui-line,var(--dshp-line,#d8e1ed));border-radius:8px;background:var(--ui-hover,var(--dshp-fill,#f1f5fa))}
+.dshp-pane-head .dshp-pane-mode{min-height:22px;padding:0 7px;border:1px solid transparent;border-radius:6px;
+  background:transparent;color:var(--ui-muted,var(--dshp-mute,#64748b));font-size:var(--ui-text-helper,12px);cursor:pointer}
+.dshp-pane-head .dshp-pane-mode:hover{background:var(--ui-surface,var(--dshp-paper,#fff));color:var(--ui-text,var(--dshp-ink,#1b2b40))}
+.dshp-pane-head .dshp-pane-mode.on{border-color:var(--ui-line-strong,var(--dshp-line,#a3b5cc));
+  background:var(--ui-surface,var(--dshp-paper,#fff));color:var(--ui-text,var(--dshp-ink,#1b2b40));font-weight:650}
+.dshp-pane-head{display:flex;align-items:center;gap:8px;flex:0 0 auto;flex-wrap:wrap;row-gap:6px;min-height:48px;padding:6px 12px;background:var(--ui-surface,var(--dshp-paper,#fff));border-bottom:1px solid var(--ui-line,var(--dshp-line,#d8e1ed))}
+.dshp-pane-head b{font-size:var(--ui-text-control,13px);font-weight:650;white-space:nowrap}
+.dshp-pane-tools{display:inline-flex;flex:0 0 auto;align-items:center;gap:6px}
+.dshp-pane-tools .dshp-theme-control{margin:0}
+.dshp-pane-tools select.dshp-theme-select{width:104px;min-height:26px;height:26px;padding:0 6px}
+/* 窄分栏优先保住按钮：标题与品牌块可压缩，按钮永远不换行丢出去。 */
+.dshp-pane-sub{flex:1 1 120px}
+.dshp-pane-head .dshp-pane-modes{margin-left:auto}
+.dshp-pane-brand{display:inline-flex;align-items:center;justify-content:center;width:26px;height:27px;border-radius:var(--ui-radius-control,8px);background:var(--ui-link,var(--dshp-accent,#3f6b52));color:var(--ui-selected-text,#fff);font:650 15px/1 var(--ui-font,system-ui);text-transform:uppercase}
+.dshp-pane-sub{min-width:0;flex:1;overflow:hidden;color:var(--ui-muted,var(--dshp-mute,#64748b));font-size:var(--ui-text-helper,12px);text-overflow:ellipsis;white-space:nowrap}
+.dshp-pane-head button,.dshp-pane-actions button{appearance:none;min-height:28px;padding:0 9px;border:1px solid var(--ui-line,var(--dshp-line,#d8e1ed));border-radius:var(--ui-radius-control,8px);background:var(--ui-surface,var(--dshp-paper,#fff));color:var(--ui-text,var(--dshp-ink,#1b2b40));cursor:pointer;font:inherit;font-size:var(--ui-text-helper,12px)}
+.dshp-pane-head button:hover,.dshp-pane-actions button:hover{background:var(--ui-hover,var(--dshp-fill,#eef3f8));border-color:var(--ui-line-strong,var(--dshp-line,#a3b5cc))}
+.dshp-pane-tabs{display:flex;flex:0 0 auto;gap:2px;padding:4px 12px 0;background:var(--ui-surface,var(--dshp-paper,#fff));border-bottom:1px solid var(--ui-line,var(--dshp-line,#d8e1ed));overflow-x:auto}
+.dshp-pane-tab{appearance:none;padding:8px 12px;margin-bottom:-1px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--ui-muted,var(--dshp-mute,#64748b));cursor:pointer;font:inherit;font-size:var(--ui-text-control,13px);white-space:nowrap}
+.dshp-pane-tab:hover{color:var(--ui-text,var(--dshp-ink,#1b2b40))}
+.dshp-pane-tab.on{border-bottom-color:var(--ui-link,var(--dshp-accent,#3f6b52));color:var(--ui-text,var(--dshp-ink,#1b2b40));font-weight:650}
+.dshp-pane-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.dshp-pane-scroll{flex:1;min-height:0;overflow:auto;padding:var(--ui-space-3,12px);background:var(--ui-canvas,var(--dshp-bg,transparent))}
+/* 会话地图按分栏自身可用宽度收放：auto-fit 不需要容器查询，
+   也就不会给 position:fixed 的地图全屏态造出意外的包含块。 */
+.dshp-pane-map{background:var(--ui-canvas)}
+.dshp-pane-map .rt-session-map{margin-bottom:0;border:0;border-radius:0;background:transparent}
+.dshp-pane-map .rt-session-map-layout{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));min-height:0}
+.dshp-pane-map .rt-session-map-graph-pane{min-height:300px}
+.dshp-pane-map .rt-session-map-graph{min-height:300px}
+.dshp-pane-map .rt-session-map-detail{min-height:0}
+/* 一列布局时详情跟在图下面，别留一条分裂边框。 */
+.dshp-pane-map .rt-session-map-graph-pane{border-right:1px solid var(--rt-border)}
+.dshp-pane-map .rt-session-map-head,.dshp-pane-map .rt-session-map-toolbar,.dshp-pane-map .rt-session-map-note{padding-left:10px;padding-right:10px}
+.dshp-pane-map .rt-session-map-toolbar .rt-session-map-filter{width:84px}
+/* 统计条在这层没有 .rt-collab-page 兜底，自己给一套，四格自动换行。 */
+.dshp-pane-map .rt-session-map-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:6px;padding:8px 10px;
+  border-bottom:1px solid var(--rt-border);background:var(--rt-bg-base)}
+.dshp-pane-map .rt-session-map-stat{display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0;
+  padding:4px 8px;border:1px solid var(--rt-border);border-radius:8px;background:var(--rt-bg-surface)}
+.dshp-pane-map .rt-session-map-stat small{color:var(--rt-muted);font-size:var(--ui-text-helper);line-height:var(--ui-leading-body)}
+.dshp-pane-map .rt-session-map-stat b{color:var(--rt-ink);font-size:var(--ui-text-control);font-variant-numeric:tabular-nums}
+.dshp-pane-map .rt-session-map-foot{background:var(--rt-bg-surface)}
+/* 地图里的小控件跟着当前主题走，别退回硬编码浅色。 */
+.dshp-pane-map .rt-session-map .rt-input{background:var(--rt-bg-surface);border-color:var(--rt-border);color:var(--rt-ink)}
+.dshp-pane-map .rt-session-map .rt-input option{background:var(--rt-bg-surface);color:var(--rt-ink)}
+.dshp-pane-task{margin:0 0 8px;padding:10px 11px;border:1px solid var(--ui-line,var(--dshp-line,#d8e1ed));border-left:3px solid var(--ui-muted,var(--dshp-mute,#64748b));border-radius:var(--ui-radius-control,8px);background:var(--ui-surface,var(--dshp-paper,#fff));color:var(--ui-text,var(--dshp-ink,#1b2b40))}
+.dshp-pane-task-head{display:flex;align-items:flex-start;gap:8px}
+.dshp-pane-task-name{flex:1;min-width:0;font-size:var(--ui-text-control,13px);font-weight:650;line-height:1.45;overflow-wrap:anywhere}
+.dshp-pane-task-desc{margin:3px 0 0;color:var(--ui-muted,var(--dshp-mute,#64748b));font-size:var(--ui-text-helper,12px);line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.dshp-pane-task-meta{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;color:var(--ui-muted,var(--dshp-mute,#64748b));font-size:var(--ui-text-helper,12px);line-height:1.5}
+.dshp-pane-chip{display:inline-flex;flex:none;align-items:center;padding:1px 6px;border:1px solid var(--ui-line,var(--dshp-line,#d8e1ed));border-radius:99px;background:transparent;color:var(--ui-muted,var(--dshp-mute,#64748b));font-size:var(--ui-text-helper,12px);white-space:nowrap}
+.dshp-pane-chip.is-wait,.dshp-pane-task-wait{border-color:var(--ui-warning,var(--dshp-warn,#8a5a12));background:var(--ui-warning-bg,#fcf4e4);color:var(--ui-warning,var(--dshp-warn,#8a5a12))}
+.dshp-pane-chip.is-live,.dshp-pane-task-live{border-color:var(--ui-success,var(--dshp-ok,#1f7a45));background:var(--ui-success-bg,#e9f5ee);color:var(--ui-success,var(--dshp-ok,#1f7a45))}
+.dshp-pane-chip.is-fail,.dshp-pane-task-fail{border-color:var(--ui-danger,var(--dshp-bad,#b63f3f));background:var(--ui-danger-bg,#fbeeed);color:var(--ui-danger,var(--dshp-bad,#b63f3f))}
+.dshp-pane-chip.is-quiet{border-color:var(--ui-line,var(--dshp-line,#d8e1ed));background:transparent;color:var(--ui-muted,var(--dshp-mute,#64748b))}
+.dshp-pane-chip.is-done,.dshp-pane-task-done{opacity:.7}
+.dshp-pane-needs{color:var(--ui-warning,var(--dshp-warn,#8a5a12))}
+.dshp-pane-empty{padding:28px 12px;color:var(--ui-muted,var(--dshp-mute,#64748b));font-size:var(--ui-text-helper,12px);line-height:1.6;text-align:center;overflow-wrap:anywhere}
+.dshp-pane-actions{display:flex;flex:0 0 auto;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid var(--ui-line,var(--dshp-line,#d8e1ed));background:var(--ui-surface,var(--dshp-paper,#fff))}
+.dshp-pane-actions button.primary{border-color:var(--ui-link,var(--dshp-accent,#3f6b52));background:var(--ui-link,var(--dshp-accent,#3f6b52));color:var(--ui-selected-text,#fff)}
+.dshp-pane-orch{margin-top:10px;padding-top:10px;border-top:1px solid var(--ui-line,var(--dshp-line,#d8e1ed))}
+.dshp-pane-orch-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dshp-pane-orch-label{flex:1 1 auto;min-width:0;color:var(--ui-text,var(--dshp-ink,#1b2b40));font-size:var(--ui-text-label,12px)}
+.dshp-pane-orch-fixed{padding:1px 6px;border:1px solid var(--ui-success,var(--dshp-ok,#1f7a45));border-radius:99px;background:var(--ui-success-bg,#e9f5ee);color:var(--ui-success,var(--dshp-ok,#1f7a45));font-size:var(--ui-text-helper,12px)}
+.dshp-pane-orch-hint{margin:4px 0 8px;color:var(--ui-muted,var(--dshp-mute,#64748b));font-size:var(--ui-text-helper,12px);line-height:1.55;overflow-wrap:anywhere}
+.dshp-pane-error{margin:4px 0 8px;color:var(--ui-danger,var(--dshp-bad,#b63f3f));font-size:var(--ui-text-helper,12px);line-height:1.55;overflow-wrap:anywhere}
+.dshp-pane-orch input[type=number]{width:74px;box-sizing:border-box;padding:4px 7px;border:1px solid var(--ui-line,var(--dshp-line,#d8e1ed));border-radius:var(--ui-radius-control,8px);background:var(--ui-surface,var(--dshp-paper,#fff));color:var(--ui-text,var(--dshp-ink,#1b2b40));font:inherit;font-size:var(--ui-text-helper,12px)}
+/* 把手方向跟着形态走：贴边拖外侧那条边，浮动窗拖右下角。 */
+.dshp-pane-resize{position:absolute;top:0;bottom:0;width:8px;cursor:ew-resize;touch-action:none;background:transparent;z-index:2}
+.dshp-dock.dshp-pane[data-pane-mode="left"] .dshp-pane-resize{right:-4px;left:auto}
+.dshp-dock.dshp-pane[data-pane-mode="right"] .dshp-pane-resize{left:-4px;right:auto}
+.dshp-dock.dshp-pane[data-pane-mode="float"] .dshp-pane-resize{left:auto;right:0;top:auto;bottom:0;width:18px;height:18px;cursor:nwse-resize;
+  background:linear-gradient(135deg,transparent 52%,color-mix(in srgb,var(--ui-link,var(--dshp-accent,#3f6b52)) 70%,transparent) 52%)}
+.dshp-pane-resize:hover{background:color-mix(in srgb,var(--ui-link,var(--dshp-accent,#3f6b52)) 25%,transparent)}
+.dshp-pane-body .rt-dock:not(.rt-embedded){position:relative;inset:auto;width:100%!important;height:100%;max-width:none!important;flex:1;min-width:0;min-height:0;display:flex!important;transform:none!important;opacity:1!important;pointer-events:auto!important;background:transparent!important;box-shadow:none;border:0}
+.dshp-pane-body .rt-grip{display:none!important}
+/* 清洗页在分栏里跟着 dock-body 的滚动规则走，这里只补底色与最小宽度。 */
+.dshp-pane-clean{background:var(--ui-canvas)}
+.dshp-pane-clean>.dshp-root{min-height:100%;max-width:none;background:var(--ui-canvas)!important}
+.dshp-pane-clean .dshp-studio-layout{min-height:100%}
+.dshp-pane-clean .dshp-studio-main{min-width:0}
+@media(max-width:640px){
+  .dshp-dock.dshp-pane{min-width:0;width:min(100vw,520px)!important}
+  .dshp-dock.dshp-pane[data-pane-mode="left"],.dshp-dock.dshp-pane[data-pane-mode="right"]{width:min(100vw,520px)!important}
+  .dshp-pane-tabs{padding-left:8px;padding-right:8px}.dshp-pane-tab{padding-left:9px;padding-right:9px}
+  .dshp-pane-head{flex-wrap:wrap;min-height:0;padding:6px 8px}
+  .dshp-pane-head .dshp-pane-modes{order:3}
+}
 `;
 
 		function formatSize(bytes) {
@@ -3550,10 +3905,11 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 			return node;
 		}
 
-		function PurgifySection() {
+		function PurgifySection(props = {}) {
 			const t = useT();
 			const tRef = useRef(t);
 			tRef.current = t;
+			const studioChapter = props && props.studioChapter ? props.studioChapter : "patches";
 			const [state, setState] = useState(null);
 			const [override, setOverride] = useState("");
 			const [defaultOverride, setDefaultOverride] = useState("");
@@ -3955,49 +4311,147 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 			if (tally.unmatched) metricNotes.push(t("metric.unmatchedShort", { n: tally.unmatched }));
 			if (tally.skipped) metricNotes.push(t("metric.skipShort", { n: tally.skipped }));
 
-			const localVer = (s && s.plugin_version) || (updateInfo && updateInfo.localVersion) || "";
-			return h("section", { className: "dshp-panel", "aria-label": t("purge.title") },
-				h("div", { className: "dshp-head" },
-					h("h3", { className: "dshp-title" }, t("purge.title")),
-					h("span", { className: "dshp-pill" }, t("surface." + hostSurface)),
-				),
-				h("div", { className: "dshp-rel" },
-					h("div", { className: "dshp-now" },
-						h("span", { className: "dshp-now-label" }, t("channel.local")),
-						h("b", { className: "dshp-now-ver" }, localVer ? "v" + localVer : "—"),
-					),
-				),
-				s ? h("div", { className: "dshp-metrics" },
-					h("div", { className: "dshp-metric" },
-						h("b", null, located ? (applied + " / " + total) : (patchesLost ? t("metric.lost.count") : (sealedReady ? t("metric.sealed.count") : t("metric.unlocated.count")))),
-						h("span", null, !located ? (patchesLost ? t("metric.lost") : (sealedReady ? t("metric.sealed") : t("metric.unlocated"))) : (metricNotes.length ? metricNotes.join(" · ") : t("metric.purged"))),
-					),
-					h("div", { className: "dshp-metric" },
-						h("b", { style: { fontSize: 13, fontFamily: "var(--dshp-mono)", fontWeight: 500 } },
-							h("span", { className: "dshp-pill is-" + shimKind(s.shim_cmd) }, "cmd"),
-							" ",
-							h("span", { className: "dshp-pill is-" + shimKind(s.shim_ps1) }, "ps1"),
-							" ",
-							h("span", { className: "dshp-pill is-" + shimKind(s.shim_bin || "missing") }, "unix"),
+			const localVer = s && typeof s.plugin_version === "string" ? s.plugin_version.trim() : ((updateInfo && updateInfo.localVersion) || "");
+			return h("section", { className: "dshp-clean-page dshp-studio-purgify", "aria-label": t("purge.title") },
+				h("div", {
+					className: "dshp-studio-chapter dshp-studio-patches",
+					id: "dshp-studio-panel-patches",
+					"data-studio-chapter": "patches",
+					hidden: studioChapter !== "patches",
+					"aria-hidden": studioChapter !== "patches",
+				},
+					h("header", { className: "dshp-clean-heading" },
+						h("div", null,
+							h("div", { className: "dshp-kicker" }, t("purge.title")),
+							h("h3", { className: "dshp-title" }, t("clean.workspace")),
+							h("p", { className: "dshp-clean-description" }, t("clean.description")),
 						),
-						h("span", null, (s.shim_cmd === "n/a" && s.shim_ps1 === "n/a" && (s.shim_bin === "n/a" || !s.shim_bin)) ? t("metric.shim.na") : t("metric.shim")),
+						h("div", { className: "dshp-clean-version" },
+							h("span", { className: "dshp-pill" }, t("surface." + hostSurface)),
+							h("div", { className: "dshp-now" },
+								h("span", { className: "dshp-now-label" }, t("channel.local")),
+								h("b", { className: "dshp-now-ver" }, localVer ? "v" + localVer : "—"),
+								h("em", { className: "dshp-now-mark" }, t("update.current")),
+							),
+						),
 					),
-					h("div", { className: "dshp-metric" },
-						h("b", null, s.has_backup ? t("metric.bak.yes") : t("metric.bak.no")),
-						h("span", null, t("metric.bak.hint")),
+					h("div", { className: "dshp-clean-overview" },
+						s ? h("div", { className: "dshp-metrics" },
+							h("div", { className: "dshp-metric" },
+								h("small", { className: "dshp-clean-metric-label" }, t("clean.metricPatches")),
+								h("b", null, located ? (applied + " / " + total) : (patchesLost ? t("metric.lost.count") : (sealedReady ? t("metric.sealed.count") : t("metric.unlocated.count")))),
+								h("span", null, !located ? (patchesLost ? t("metric.lost") : (sealedReady ? t("metric.sealed") : t("metric.unlocated"))) : (metricNotes.length ? metricNotes.join(" · ") : t("metric.purged"))),
+							),
+							h("div", { className: "dshp-metric" },
+								h("small", { className: "dshp-clean-metric-label" }, t("clean.metricShim")),
+								h("b", { style: { fontSize: 13, fontFamily: "var(--dshp-mono)", fontWeight: 500 } },
+									h("span", { className: "dshp-pill is-" + shimKind(s.shim_cmd) }, "cmd"), " ",
+									h("span", { className: "dshp-pill is-" + shimKind(s.shim_ps1) }, "ps1"), " ",
+									h("span", { className: "dshp-pill is-" + shimKind(s.shim_bin || "missing") }, "unix"),
+								),
+								h("span", null, (s.shim_cmd === "n/a" && s.shim_ps1 === "n/a" && (s.shim_bin === "n/a" || !s.shim_bin)) ? t("metric.shim.na") : t("metric.shim")),
+							),
+							h("div", { className: "dshp-metric" },
+								h("small", { className: "dshp-clean-metric-label" }, t("clean.metricBackup")),
+								h("b", null, s.has_backup ? t("metric.bak.yes") : t("metric.bak.no")),
+								h("span", null, t("metric.bak.hint")),
+							),
+						) : h("div", { className: "dshp-metrics" },
+							h("div", { className: "dshp-metric" }, h("div", { className: "dshp-skel" }), h("div", { className: "dshp-skel", style: { width: "40%" } })),
+							h("div", { className: "dshp-metric" }, h("div", { className: "dshp-skel" }), h("div", { className: "dshp-skel", style: { width: "40%" } })),
+							h("div", { className: "dshp-metric" }, h("div", { className: "dshp-skel" }), h("div", { className: "dshp-skel", style: { width: "40%" } })),
+						),
+						h("div", { className: "dshp-clean-progress" }, h("span", null, t("clean.progress")), h("b", null, located && total ? pct + "%" : "—")),
+						h("div", { className: "dshp-bar", role: "progressbar", "aria-label": t("clean.progress"), "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": located && total ? pct : undefined }, h("i", { style: { width: pct + "%" } })),
 					),
-				) : h("div", { className: "dshp-metrics" },
-					h("div", { className: "dshp-metric" }, h("div", { className: "dshp-skel" }), h("div", { className: "dshp-skel", style: { width: "40%" } })),
-					h("div", { className: "dshp-metric" }, h("div", { className: "dshp-skel" }), h("div", { className: "dshp-skel", style: { width: "40%" } })),
-					h("div", { className: "dshp-metric" }, h("div", { className: "dshp-skel" }), h("div", { className: "dshp-skel", style: { width: "40%" } })),
+					h("div", { className: "dshp-clean-grid" },
+						h("section", { className: "dshp-clean-card dshp-clean-patches", "aria-labelledby": "dshp-clean-patches-title" },
+							h("header", { className: "dshp-clean-card-head" },
+								h("h4", { id: "dshp-clean-patches-title" }, t("clean.patches")),
+								h("p", null, t("clean.patchesHint")),
+							),
+							h("div", { className: "dshp-clean-groups" }, h(PatchGroups, { state: s })),
+							h("div", { className: "dshp-row dshp-clean-actions" },
+								h(Btn, { kind: "primary", disabled: patchBusy || uninstallBusy, onClick: () => doAction("apply", "action.apply") }, patchBusy ? t("btn.apply.busy") : t("btn.apply")),
+								h(Btn, { kind: "danger", disabled: patchBusy || uninstallBusy, onClick: () => doAction("revert", "action.revert") }, t("btn.revert")),
+								h(Btn, { kind: "solid-danger", disabled: patchBusy || uninstallBusy, onClick: () => setAskUninstall(true) }, uninstallBusy ? t("btn.uninstall.busy") : t("btn.uninstall")),
+							),
+							s && s.ai_base && s.override_status === "missing" ? h("p", { className: "dshp-hint", style: { margin: "8px 0 0", color: "var(--dshp-mute)", fontSize: 12 } }, t("warn.noInject")) : null,
+						),
+					),
 				),
-				h("div", { className: "dshp-bar", "aria-hidden": "true" }, h("i", { style: { width: pct + "%" } })),
-				h(PatchGroups, { state: s }),
-				h("div", { className: "dshp-row", style: { marginTop: 14 } },
-					h(Btn, { kind: "primary", disabled: patchBusy || uninstallBusy, onClick: () => doAction("apply", "action.apply") }, patchBusy ? t("btn.apply.busy") : t("btn.apply")),
-					h(Btn, { kind: "danger", disabled: patchBusy || uninstallBusy, onClick: () => doAction("revert", "action.revert") }, t("btn.revert")),
-					h(Btn, { kind: "solid-danger", disabled: patchBusy || uninstallBusy, onClick: () => setAskUninstall(true) }, uninstallBusy ? t("btn.uninstall.busy") : t("btn.uninstall")),
-					noticeNode(notice),
+				notice.text ? h("div", { className: "dshp-clean-feedback", role: "status" }, noticeNode(notice)) : null,
+				h("div", { className: "dshp-clean-config" },
+					h("div", {
+						className: "dshp-studio-chapter dshp-studio-prompt",
+						id: "dshp-studio-panel-prompt",
+						"data-studio-chapter": "prompt",
+						hidden: studioChapter !== "prompt",
+						"aria-hidden": studioChapter !== "prompt",
+					},
+						h("section", { className: "dshp-clean-card dshp-clean-prompt", "aria-labelledby": "dshp-clean-prompt-title" },
+							h("div", { className: "dshp-sub" },
+								h("h4", { id: "dshp-clean-prompt-title" }, t("override.title")),
+								h("div", { className: "dshp-row", style: { margin: 0 } },
+									h(Btn, { kind: "primary", tiny: true, disabled: patchBusy || !overrideLoaded, onClick: saveOverride }, t("btn.saveInject")),
+								h(Btn, { tiny: true, disabled: patchBusy || !overrideLoaded || !defaultOverride, onClick: restoreOverride }, t("btn.restoreInject")),
+							),
+						),
+							h("p", { className: "dshp-clean-description" }, t("clean.promptHint")),
+							h("textarea", {
+								className: "dshp-area",
+								"aria-labelledby": "dshp-clean-prompt-title",
+								ref: promptAreaRef,
+								value: override,
+								onChange: (e) => { promptDirtyRef.current = true; overrideRef.current = e.target.value; setOverride(e.target.value); },
+								spellCheck: false,
+								placeholder: "",
+							}),
+							promptBoxEmpty(override) ? h("p", { className: "dshp-hint", style: { margin: "8px 0 0", color: "var(--dshp-danger, #c44)", fontSize: 12 } }, t("need.prompt")) : null,
+						),
+					),
+					h("div", {
+						className: "dshp-studio-chapter dshp-studio-servers",
+						id: "dshp-studio-panel-servers",
+						"data-studio-chapter": "servers",
+						hidden: studioChapter !== "servers",
+						"aria-hidden": studioChapter !== "servers",
+					},
+						h("section", { className: "dshp-clean-card dshp-clean-servers", "aria-labelledby": "dshp-clean-servers-title" },
+							h("div", { className: "dshp-sub" },
+								h("h4", { id: "dshp-clean-servers-title" }, t("own.title")),
+								h("div", { className: "dshp-row", style: { margin: 0 } },
+									h(Btn, {
+									kind: "primary",
+									tiny: true,
+									disabled: !ownLoaded,
+									onClick: () => {
+										fetch("/dsh-purge-safe/own-servers", {
+											method: "POST",
+											headers: { "content-type": "application/json" },
+											body: JSON.stringify({ content: ownServers }),
+										}).then((r) => r.json()).then((d) => {
+											if (!d || !d.ok) { setNotice({ kind: "error", text: (d && d.error) || t("err.override", { error: "" }) }); return; }
+											if (typeof d.content === "string") setOwnServers(d.content);
+											setNotice({ kind: "ok", text: d.dropped > 0 ? t("saved.own.dropped", { n: d.dropped }) : t("saved.own") });
+										}).catch((e) => setNotice({ kind: "error", text: e.message }));
+									},
+								}, t("own.save")),
+							),
+						),
+							h("p", { className: "dshp-clean-description" }, t("clean.serversHint")),
+							h("textarea", {
+								className: "dshp-area",
+								"aria-labelledby": "dshp-clean-servers-title",
+								value: ownServers,
+								onChange: (e) => setOwnServers(e.target.value),
+								spellCheck: false,
+								rows: 4,
+								style: { minHeight: 96 },
+							}),
+							h("p", { className: "dshp-hint", style: { margin: "8px 0 0", color: "var(--dshp-mute)", fontSize: 12 } }, t("own.hint")),
+						),
+					),
 				),
 				askUninstall ? h("div", {
 					className: "dshp-modal-bg",
@@ -4012,82 +4466,16 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 						h("div", { className: "dshp-modal-ops" },
 							h(Btn, { disabled: uninstallBusy, onClick: () => setAskUninstall(false) }, t("uninstall.cancel")),
 							h(Btn, { kind: "solid-danger", disabled: uninstallBusy, onClick: doUninstall }, t("uninstall.confirm")),
-						),
+					),
 					),
 				) : null,
-				s && s.ai_base && s.override_status === "missing" ? h("p", { className: "dshp-hint", style: { margin: "8px 0 0", color: "var(--dshp-mute)", fontSize: 12 } }, t("warn.noInject")) : null,
 				askRestart ? h(RestartAsk, {
 					t: t,
-					theme: detectHostTheme(),
+					theme: readTheme(),
 					busy: restartBusy,
-					onLater: () => {
-						suppressRestartAsk.current = true;
-						setAskRestart(false);
-					},
-					onRestart: () => {
-						restartDsh(setNotice, setRestartBusy, t, restartSurfaceRef.current || uiSurfaceOf() || hostSurface || "");
-					},
+					onLater: () => { suppressRestartAsk.current = true; setAskRestart(false); },
+					onRestart: () => restartDsh(setNotice, setRestartBusy, t, restartSurfaceRef.current || uiSurfaceOf() || hostSurface || ""),
 				}) : null,
-				// h(ContinueRetrySection, null),
-				h("div", { className: "dshp-sub" },
-					h("h4", null, t("override.title")),
-					h("div", { className: "dshp-row", style: { margin: 0 } },
-						h(Btn, { kind: "primary", tiny: true, disabled: patchBusy || !overrideLoaded, onClick: saveOverride }, t("btn.saveInject")),
-						h(Btn, { tiny: true, disabled: patchBusy || !overrideLoaded || !defaultOverride, onClick: restoreOverride }, t("btn.restoreInject")),
-					),
-				),
-				h("textarea", {
-					className: "dshp-area",
-					ref: promptAreaRef,
-					value: override,
-					onChange: (e) => {
-						promptDirtyRef.current = true;
-						overrideRef.current = e.target.value;
-						setOverride(e.target.value);
-					},
-					spellCheck: false,
-					placeholder: "",
-				}),
-				promptBoxEmpty(override) ? h("p", {
-					className: "dshp-hint",
-					style: { margin: "8px 0 0", color: "var(--dshp-danger, #c44)", fontSize: 12 },
-				}, t("need.prompt")) : null,
-				h("div", { className: "dshp-sub" },
-					h("h4", null, t("own.title")),
-					h("div", { className: "dshp-row", style: { margin: 0 } },
-						h(Btn, {
-							kind: "primary",
-							tiny: true,
-							disabled: !ownLoaded,
-							onClick: () => {
-								fetch("/dsh-purge-safe/own-servers", {
-									method: "POST",
-									headers: { "content-type": "application/json" },
-									body: JSON.stringify({ content: ownServers }),
-								}).then((r) => r.json()).then((d) => {
-									if (!d || !d.ok) {
-										setNotice({ kind: "error", text: (d && d.error) || t("err.override", { error: "" }) });
-										return;
-									}
-									if (typeof d.content === "string") setOwnServers(d.content);
-									setNotice({
-										kind: "ok",
-										text: d.dropped > 0 ? t("saved.own.dropped", { n: d.dropped }) : t("saved.own"),
-									});
-								}).catch((e) => setNotice({ kind: "error", text: e.message }));
-							},
-						}, t("own.save")),
-					),
-				),
-				h("textarea", {
-					className: "dshp-area",
-					value: ownServers,
-					onChange: (e) => setOwnServers(e.target.value),
-					spellCheck: false,
-					rows: 4,
-					style: { minHeight: 96 },
-				}),
-				h("p", { className: "dshp-hint", style: { margin: "8px 0 0", color: "var(--dshp-mute)", fontSize: 12 } }, t("own.hint")),
 			);
 		}
 
@@ -4862,27 +5250,43 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 		}
 
 		function readTheme() {
+			if (typeof productTheme !== "undefined" && productTheme && typeof productTheme.read === "function") {
+				return productTheme.read();
+			}
 			return detectHostTheme();
 		}
 
-		function SettingsRoot(props) {
-			const t = typeof props.t === "function" ? props.t : ((key) => key);
-			const [theme, setTheme] = useState(readTheme);
+		function useProductTheme() {
+			const readMode = () => {
+				try {
+					const mode = productTheme && typeof productTheme.mode === "function" ? productTheme.mode() : "system";
+					return ["dusk", "white", "system"].includes(mode) ? mode : "dusk";
+				} catch { return "dusk"; }
+			};
+			const [state, setState] = useState(() => ({ theme: readTheme(), mode: readMode() }));
 			useEffect(() => {
 				let cancelled = false;
-				let timer = 0;
-				const syncFromHost = () => {
-					if (!cancelled) setTheme(detectHostTheme());
+				const sync = (resolved, selected) => {
+					if (cancelled) return;
+					const mode = ["dusk", "white", "system"].includes(selected) ? selected : readMode();
+					setState({ theme: resolved || readTheme(), mode: mode });
 				};
+				if (typeof productTheme !== "undefined" && productTheme && typeof productTheme.subscribe === "function") {
+					const stop = productTheme.subscribe(sync);
+					sync(readTheme(), readMode());
+					return () => { cancelled = true; try { stop?.(); } catch { /* ignore */ } };
+				}
+				let timer = 0;
+				const syncHost = () => sync(detectHostTheme(), "system");
 				const syncSoon = () => {
 					if (timer) window.clearTimeout(timer);
-					timer = window.setTimeout(syncFromHost, 50);
+					timer = window.setTimeout(syncHost, 50);
 				};
-				syncFromHost();
+				syncHost();
 				let mq;
 				try {
 					mq = window.matchMedia?.("(prefers-color-scheme: dark)");
-					mq?.addEventListener?.("change", syncFromHost);
+					mq?.addEventListener?.("change", syncHost);
 				} catch { /* ignore */ }
 				let obs;
 				try {
@@ -4893,16 +5297,119 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 				return () => {
 					cancelled = true;
 					if (timer) window.clearTimeout(timer);
-					try { mq?.removeEventListener?.("change", syncFromHost); } catch { /* ignore */ }
+					try { mq?.removeEventListener?.("change", syncHost); } catch { /* ignore */ }
 					try { obs?.disconnect(); } catch { /* ignore */ }
 				};
 			}, []);
+			return state;
+		}
+
+		function ProductThemeControl(props) {
+			const t = props && typeof props.t === "function" ? props.t : ((key) => key);
+			const modes = ["dusk", "white", "system"];
+			const themeState = useProductTheme();
+			const selectedMode = modes.includes(themeState.mode) ? themeState.mode : "dusk";
+			const onChange = (event) => {
+				const next = event?.target?.value;
+				if (!modes.includes(next)) return;
+				if (typeof productTheme !== "undefined" && productTheme && typeof productTheme.set === "function") {
+					productTheme.set(next);
+				}
+			};
+			return h("label", { className: "dshp-theme-control" },
+				h("select", {
+					className: "dshp-field dshp-theme-select",
+					"aria-label": t("theme.aria"),
+					value: selectedMode,
+					onChange,
+				},
+					h("option", { value: "dusk" }, t("theme.dark")),
+					h("option", { value: "white" }, t("theme.light")),
+					h("option", { value: "system" }, t("theme.system")),
+				),
+			);
+		}
+
+		function SettingsRoot(props) {
+			const t = typeof props.t === "function" ? props.t : ((key) => key);
+			const { theme } = useProductTheme();
+			const [studioChapter, setStudioChapter] = useState("patches");
+			const chapters = [
+				{ id: "patches", label: t("clean.patches"), description: t("studio.nav.patches") },
+				{ id: "prompt", label: t("override.title"), description: t("studio.nav.prompt") },
+				{ id: "servers", label: t("own.title"), description: t("studio.nav.servers") },
+				{ id: "rules", label: t("rules.title"), description: t("studio.nav.rules") },
+				{ id: "skills", label: t("skills.title"), description: t("studio.nav.skills") },
+			];
+			const chooseStudioChapter = (event, next) => {
+				if (!next) return;
+				event?.preventDefault?.();
+				setStudioChapter(next.id);
+				try {
+					const parent = event && event.currentTarget && event.currentTarget.parentElement;
+					const target = parent && parent.querySelector && parent.querySelector('[data-studio-chapter="' + next.id + '"]');
+					target?.focus?.({ preventScroll: true });
+				} catch { /* focus is best effort in host test doubles */ }
+			};
+			const moveStudioChapter = (event, offset) => {
+				const current = chapters.findIndex((chapter) => chapter.id === studioChapter);
+				chooseStudioChapter(event, chapters[(current + offset + chapters.length) % chapters.length]);
+			};
 			translate = t;
-			return h("div", { className: "dshp-root", "data-theme": theme },
+			return h("div", { className: "dshp-root dshp-studio-root", "data-theme": theme, "data-dshp-studio": "clean" },
 				h("style", null, PURGE_CSS),
-				h(PurgifySection, null),
-				h(RulesSection, null),
-				h(SkillsSection, null),
+				h("div", { className: "dshp-studio-layout" },
+					h("aside", { className: "dshp-studio-nav", "aria-label": t("purge.title") },
+						h("div", { className: "dshp-studio-nav-heading" },
+							h("span", { className: "dshp-kicker" }, t("purge.title")),
+							h("strong", null, t("clean.workspace")),
+						),
+						h("div", { className: "dshp-studio-nav-list", role: "tablist", "aria-orientation": "vertical" },
+							chapters.map((chapter) => h("button", {
+								key: chapter.id,
+								type: "button",
+								role: "tab",
+								className: "dshp-studio-nav-item" + (studioChapter === chapter.id ? " is-selected" : ""),
+								"data-studio-chapter": chapter.id,
+								"aria-selected": studioChapter === chapter.id,
+								"aria-controls": "dshp-studio-panel-" + chapter.id,
+								tabIndex: studioChapter === chapter.id ? 0 : -1,
+								onClick: () => setStudioChapter(chapter.id),
+								onKeyDown: (event) => {
+									if (event.key === "ArrowDown" || event.key === "ArrowRight") moveStudioChapter(event, 1);
+									else if (event.key === "ArrowUp" || event.key === "ArrowLeft") moveStudioChapter(event, -1);
+									else if (event.key === "Home") chooseStudioChapter(event, chapters[0]);
+									else if (event.key === "End") chooseStudioChapter(event, chapters[chapters.length - 1]);
+								},
+							},
+								h("span", { className: "dshp-studio-nav-label" }, chapter.label),
+								h("small", { className: "dshp-studio-nav-description" }, chapter.description),
+							)),
+						),
+					),
+					h("main", { className: "dshp-studio-main", "aria-live": "polite" },
+						h("div", {
+							className: "dshp-studio-purgify-host",
+							"data-studio-host": "purgify",
+							hidden: studioChapter === "rules" || studioChapter === "skills",
+							"aria-hidden": studioChapter === "rules" || studioChapter === "skills",
+						}, h(PurgifySection, { studioChapter: studioChapter })),
+						h("div", {
+							id: "dshp-studio-panel-rules",
+							className: "dshp-studio-chapter dshp-studio-rules",
+							"data-studio-chapter": "rules",
+							hidden: studioChapter !== "rules",
+							"aria-hidden": studioChapter !== "rules",
+						}, h(RulesSection, null)),
+						h("div", {
+							id: "dshp-studio-panel-skills",
+							className: "dshp-studio-chapter dshp-studio-skills",
+							"data-studio-chapter": "skills",
+							hidden: studioChapter !== "skills",
+							"aria-hidden": studioChapter !== "skills",
+						}, h(SkillsSection, null)),
+					),
+				),
 			);
 		}
 
@@ -4971,42 +5478,8 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 			return "";
 		}
 
-		function recoverComposerAfterIdle() {
-			try {
-				if (typeof document === "undefined") return;
-				const seat = document.querySelector("[data-composer-card], [data-composer-seat]");
-				const box = seat && seat.querySelector("[contenteditable='true'], textarea");
-				if (seat && box) return;
-				const sessions = rewindSessions || (rewindHost && rewindHost.sessions);
-				const sid = currentSessionId(sessions);
-				if (!sid) return;
-				const ws = rewindWorkspace || (rewindHost && rewindHost.uiWorkspace);
-				if (ws && typeof ws.openSession === "function") ws.openSession(sid);
-				else if (sessions && typeof sessions.open === "function") sessions.open(sid);
-			} catch { /* 宿主会话面还没起来 */ }
-		}
-
-		if (typeof document !== "undefined" && !window.__dshpComposerWatch) {
-			window.__dshpComposerWatch = true;
-			const onWake = () => { window.setTimeout(recoverComposerAfterIdle, 400); };
-			document.addEventListener("visibilitychange", () => {
-				if (document.visibilityState === "visible") onWake();
-			});
-			window.addEventListener("focus", onWake);
-			window.addEventListener("pageshow", onWake);
-			window.setInterval(recoverComposerAfterIdle, 8000);
-			try {
-				const obs = new MutationObserver(() => {
-					if (window.__dshpComposerWatchTick) return;
-					window.__dshpComposerWatchTick = true;
-					window.setTimeout(() => {
-						window.__dshpComposerWatchTick = false;
-						recoverComposerAfterIdle();
-					}, 600);
-				});
-				obs.observe(document.documentElement, { childList: true, subtree: true });
-			} catch { /* 旧环境没有 MutationObserver */ }
-		}
+		// Session navigation belongs to explicit user actions. Background DOM or
+		// wake-up checks must not reopen the session and steal composer focus.
 
 		function sessionKnown(sessions, sessionId) {
 			try {
@@ -5908,7 +6381,7 @@ function useWorkbenchFullscreen(React, elementRef, options = {}) {
 const PRODUCT_THEME_KEY = "dsh-purge-safe-ui-theme";
 const PRODUCT_THEME_EVENT = "dsh-purge-safe-ui-theme-change";
 const PRODUCT_THEME_MODES = Object.freeze(["dusk", "white", "system"]);
-const PRODUCT_THEME_DEFAULT = "dusk";
+const PRODUCT_THEME_DEFAULT = "system";
 
 function productThemeWindow(options) {
 	if (options && Object.prototype.hasOwnProperty.call(options, "window")) return options.window;
@@ -5929,6 +6402,23 @@ function productThemeMode(value) {
 	return PRODUCT_THEME_MODES.includes(value) ? value : "";
 }
 
+function productThemeMedia(options = {}) {
+	const win = productThemeWindow(options);
+	try {
+		if (!win || typeof win.matchMedia !== "function") return "";
+		const media = win.matchMedia("(prefers-color-scheme: dark)");
+		if (!media || typeof media.matches !== "boolean") return "";
+		return media.matches ? "dusk" : "white";
+	} catch { /* restricted webviews may throw */ }
+	return "";
+}
+
+function productThemeBooleanAttribute(target, name) {
+	if (!target || !target.hasAttribute?.(name)) return false;
+	const value = String(target.getAttribute?.(name) ?? "").trim().toLowerCase();
+	return !["false", "0", "off", "no"].includes(value);
+}
+
 function productThemeHost(options = {}) {
 	const win = productThemeWindow(options);
 	const doc = productThemeDocument(options, win);
@@ -5936,7 +6426,7 @@ function productThemeHost(options = {}) {
 	try {
 		for (const target of targets) {
 			if (!target) continue;
-			if (target.hasAttribute?.("data-ds-dark-theme") || target.hasAttribute?.("dark")) return "dusk";
+			if (productThemeBooleanAttribute(target, "data-ds-dark-theme") || productThemeBooleanAttribute(target, "dark")) return "dusk";
 			const attr = String(target.getAttribute?.("data-theme") || "").toLowerCase();
 			if (attr === "dusk" || attr === "dark") return "dusk";
 			if (attr === "white" || attr === "light") return "white";
@@ -5952,15 +6442,18 @@ function productThemeHost(options = {}) {
 			|| (computed && (computed.colorScheme || computed.getPropertyValue?.("color-scheme")))
 			|| "",
 		).toLowerCase();
-		if (scheme.includes("dark")) return "dusk";
-		if (scheme.includes("light")) return "white";
+		const schemes = scheme.split(/\s+/).filter(Boolean);
+		if (schemes.includes("dark") && schemes.includes("light")) {
+			const media = productThemeMedia({ ...options, window: win, document: doc });
+			if (media) return media;
+			return schemes[0] === "dark" ? "dusk" : "white";
+		}
+		if (schemes.includes("dark")) return "dusk";
+		if (schemes.includes("light")) return "white";
 	} catch { /* host inspection is best effort */ }
 
-	try {
-		if (win && typeof win.matchMedia === "function" && win.matchMedia("(prefers-color-scheme: dark)").matches) {
-			return "dusk";
-		}
-	} catch { /* restricted webviews may throw */ }
+	const media = productThemeMedia({ ...options, window: win, document: doc });
+	if (media) return media;
 	return "white";
 }
 
@@ -5996,9 +6489,10 @@ function createProductTheme(options = {}) {
 	};
 
 	const host = () => productThemeHost({ ...options, window: win, document: doc });
+	const system = () => productThemeMedia({ ...options, window: win, document: doc }) || host();
 	const read = () => {
 		const selected = mode();
-		return selected === "system" ? host() : selected;
+		return selected === "system" ? system() : selected;
 	};
 
 	const notify = () => {
@@ -6429,6 +6923,19 @@ const productTheme = createProductTheme();
 .rt-session-map-node-id{font:600 var(--ui-text-helper)/var(--ui-leading-body) var(--ui-font);fill:var(--rt-ink,#18212f)}
 .rt-session-map-node-meta{font:400 var(--ui-text-helper)/var(--ui-leading-body) var(--ui-font);fill:var(--rt-muted,#64748b)}
 .rt-session-map-node-dot.running{fill:var(--rt-success,#10b981);background:var(--rt-success,#10b981)}.rt-session-map-node-dot.idle{fill:var(--rt-muted,#94a3b8);background:var(--rt-muted,#94a3b8)}.rt-session-map-node-dot.unknown{fill:var(--rt-warning,#f59e0b);background:var(--rt-warning,#f59e0b)}
+/* Shared task-board stage tones: cards and the read-only map use the same four states. */
+.rt-session-map-node-stage{font:600 var(--ui-text-helper)/var(--ui-leading-body) var(--ui-font);fill:var(--rt-muted,#64748b)}
+.rt-session-map-node-stage.is-wait{fill:var(--rt-warning,#d97706)}
+.rt-session-map-node-stage.is-live{fill:var(--rt-success,#059669)}
+.rt-session-map-node-stage.is-fail{fill:var(--rt-danger,#b63f3f)}
+.rt-session-map-node-stage.is-done{fill:var(--rt-muted,#64748b)}
+.rt-session-map-node.is-wait rect{fill:var(--rt-warning-bg,#3b2f12);stroke:var(--rt-warning,#f59e0b);stroke-width:2}
+.rt-session-map-node.is-live rect{fill:var(--rt-success-bg,#163a31);stroke:var(--rt-success,#10b981);stroke-width:2}
+.rt-session-map-node.is-fail rect{fill:var(--rt-danger-bg,#fbeeed);stroke:var(--rt-danger,#b63f3f);stroke-width:2}
+.rt-session-map-node.is-done rect{fill:var(--rt-bg-surface,#151f2b);stroke:var(--rt-border,#cbd5e1);stroke-dasharray:0;opacity:.72}
+.rt-session-map-node.is-wait .rt-session-map-node-dot{fill:var(--rt-warning,#f59e0b);background:var(--rt-warning,#f59e0b)}
+.rt-session-map-node.is-live .rt-session-map-node-dot{fill:var(--rt-success,#10b981);background:var(--rt-success,#10b981)}
+.rt-session-map-node.is-fail .rt-session-map-node-dot{fill:var(--rt-danger,#b63f3f);background:var(--rt-danger,#b63f3f)}
 .rt-session-map-detail{min-width:0;min-height:340px;overflow:auto;padding:12px;background:var(--rt-bg-surface,#fff)}
 .rt-session-map-detail-title{font-weight:600;font-size:var(--ui-text-section);line-height:var(--ui-leading-title);overflow-wrap:anywhere;color:var(--rt-ink,#18212f)}
 .rt-session-map-detail-status{display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:var(--ui-text-helper);color:var(--rt-muted,#64748b)}
@@ -7380,6 +7887,7 @@ const productTheme = createProductTheme();
   --ui-warning-bg:#fcf4e4;
   --ui-danger:#b63f3f;
   --ui-danger-bg:#fbeeed;
+  --ui-on-danger:#ffffff;
   --ui-radius-control:9px;
   --ui-radius-panel:16px;
   --ui-control-height:34px;
@@ -7436,7 +7944,7 @@ const productTheme = createProductTheme();
     --ui-line:#344253;--ui-line-strong:#52657b;--ui-text:#e9f0f8;--ui-muted:#a5b3c5;
     --ui-link:#9ac3ff;--ui-selected:#243c5c;--ui-selected-text:#bed9ff;--ui-nav:#141c26;
     --ui-success:#82c7a4;--ui-success-bg:#1d342b;--ui-warning:#dfbd78;--ui-warning-bg:#382f20;
-    --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;
+    --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;--ui-on-danger:#25161b;
     --ui-feature-surface:#18304c;--ui-feature-line:#3b5e86;--ui-feature-text:#f0f6ff;--ui-feature-muted:#aec7e8;--ui-feature-hover:#234568;
     --ui-panel-shadow:0 5px 16px rgb(0 0 0 / .14);
     --ui-glass-surface:rgb(22 48 66 / .68);
@@ -7461,7 +7969,7 @@ const productTheme = createProductTheme();
   --ui-line:#344253;--ui-line-strong:#52657b;--ui-text:#e9f0f8;--ui-muted:#a5b3c5;
   --ui-link:#9ac3ff;--ui-selected:#243c5c;--ui-selected-text:#bed9ff;--ui-nav:#141c26;
   --ui-success:#82c7a4;--ui-success-bg:#1d342b;--ui-warning:#dfbd78;--ui-warning-bg:#382f20;
-  --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;
+  --ui-danger:#f0a3a2;--ui-danger-bg:#3a2529;--ui-on-danger:#25161b;
   --ui-feature-surface:#18304c;--ui-feature-line:#3b5e86;--ui-feature-text:#f0f6ff;--ui-feature-muted:#aec7e8;--ui-feature-hover:#234568;
   --ui-panel-shadow:0 5px 16px rgb(0 0 0 / .14);
 
@@ -7486,7 +7994,7 @@ const productTheme = createProductTheme();
   --ui-line:#d8e1ed;--ui-line-strong:#a3b5cc;--ui-text:#1b2b40;--ui-muted:#43566d;
   --ui-link:#285fbb;--ui-selected:#e6effd;--ui-selected-text:#204f9b;--ui-nav:#ffffff;
   --ui-success:#237650;--ui-success-bg:#e9f5ee;--ui-warning:#8e641a;--ui-warning-bg:#fcf4e4;
-  --ui-danger:#b63f3f;--ui-danger-bg:#fbeeed;
+  --ui-danger:#b63f3f;--ui-danger-bg:#fbeeed;--ui-on-danger:#ffffff;
   --ui-feature-surface:#193858;--ui-feature-line:#45698e;--ui-feature-text:#f0f6ff;--ui-feature-muted:#bed2ea;--ui-feature-hover:#254c73;
   --ui-panel-shadow:0 4px 14px rgb(27 43 64 / .04);
 
@@ -7580,6 +8088,10 @@ const productTheme = createProductTheme();
 }
 
 /* Older skins cannot reset native widgets to a different scheme. */
+:is(.dshp-dock,.dshp-root,.rt-dock,.rt-full) select option {
+  background:var(--ui-surface);
+  color:var(--ui-text);
+}
 :is(.dshp-dock,.dshp-root,.dshp-auth-mask,.dshp-modal-bg,.dshp-restart-mask,.rt-dock,.rt-full){color-scheme:var(--ui-scheme)!important;}
 
 
@@ -12667,7 +13179,7 @@ const productTheme = createProductTheme();
   background-color: var(--rt-studio-dark-hover) !important;
   box-shadow: none !important;
   color: var(--rt-studio-dark-ink) !important;
-  color-scheme: dark;
+  color-scheme: var(--ui-scheme);
   font-size:var(--ui-text-control);
   text-align: left;
   text-overflow: ellipsis;
@@ -14624,6 +15136,9 @@ const productTheme = createProductTheme();
   padding:10px 16px;
   border-top:1px solid var(--ui-line);
 }
+/* Summary numbers use readable semantic tones in both product themes. */
+:is(.rt-dock,.rt-full) .rt-ov-metric-ok .rt-ov-metric-value { color:var(--ui-success); }
+:is(.rt-dock,.rt-full) .rt-ov-metric-warn .rt-ov-metric-value { color:var(--ui-warning); }
 
 
 /* 窄窗自适应：右侧浮动面板默认只有 620px 宽，按「容器宽度」换布局，
@@ -14658,7 +15173,7 @@ const productTheme = createProductTheme();
     padding: 8px;
     overflow-x: auto;
     border-right: 0;
-    border-bottom: 1px solid #233c47;
+    border-bottom: 1px solid var(--rt-border);
   }
   .rt-embedded .rt-nav .rt-tab-group { flex: 1 0 auto; min-height: 34px; justify-content: center; gap: 8px; padding: 7px 10px; }
   .rt-embedded .rt-nav .rt-tab-group::before { display: none; }
@@ -14704,7 +15219,7 @@ const productTheme = createProductTheme();
     padding: 8px;
     overflow-x: auto;
     border-right: 0;
-    border-bottom: 1px solid #233c47;
+    border-bottom: 1px solid var(--rt-border);
   }
   .rt-full .rt-nav::before { display: none; content: none; }
   .rt-full .rt-nav .rt-tab-group { flex: 1 0 auto; min-height: 34px; justify-content: center; padding: 7px 10px; }
@@ -14743,6 +15258,7 @@ const productTheme = createProductTheme();
 :is(.rt-dock.rt-studio:not(.rt-embedded),.rt-full.rt-studio) {
   background-color:var(--ui-water-base) !important;
   background-image:var(--ui-water-backdrop) !important;
+  color:var(--ui-text) !important;
   background-size:auto,auto,1400px 1000px,auto,auto;
   background-position:center,center,center top,center,center;
   border-color:var(--ui-glass-edge);
@@ -14905,7 +15421,8 @@ const productTheme = createProductTheme();
 :is(.rt-dock.rt-studio,.rt-full.rt-studio) .rt-ov-score-feature {
   background:
     radial-gradient(ellipse at 0% 0%,rgb(157 222 255 / .19),transparent 68%),
-    linear-gradient(120deg,rgb(48 103 159 / .5),rgb(21 58 91 / .88));
+    linear-gradient(120deg,rgb(48 103 159 / .5),rgb(21 58 91 / .88)),
+    var(--ui-feature-surface);
   border-color:rgb(176 223 255 / .4);
   box-shadow:var(--ui-glass-shadow),inset 0 0 28px rgb(135 210 255 / .08);
   backdrop-filter:var(--ui-glass-blur);
@@ -15178,6 +15695,41 @@ const productTheme = createProductTheme();
   background:var(--ui-glass-wash),var(--ui-glass-dense);
   backdrop-filter:none;
   -webkit-backdrop-filter:none;
+}
+
+/* Fullscreen scroll tiles must not sample another viewport-sized live blur
+ * or dozens of nested card filters. Keep the water, tint, glint and borders;
+ * only bounded chrome and dialog overlays retain live backdrop sampling. */
+:is(
+  .dshp-dock.dshp-studio-dock[data-fullscreen=true],
+  .dshp-dock.dshp-studio-dock:fullscreen,
+  .rt-full.rt-studio,
+  .rt-dock.rt-studio[data-fullscreen=true]
+) {
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+}
+:is(
+  .dshp-dock.dshp-studio-dock[data-fullscreen=true],
+  .dshp-dock.dshp-studio-dock:fullscreen,
+  .rt-full.rt-studio,
+  .rt-dock.rt-studio[data-fullscreen=true]
+) :is(.rt-page-content[data-page],.dshp-studio-main),
+:is(
+  .dshp-dock.dshp-studio-dock[data-fullscreen=true],
+  .dshp-dock.dshp-studio-dock:fullscreen,
+  .rt-full.rt-studio,
+  .rt-dock.rt-studio[data-fullscreen=true]
+) :is(.rt-page-content[data-page],.dshp-studio-main) :where(*):not(:where(
+  .rt-modal,.rt-modal *,.rt-modal-box,.rt-modal-box *,
+  .rt-shot-zoom,.rt-shot-zoom *,
+  .dshp-modal-bg,.dshp-modal-bg *,
+  .dshp-auth-mask,.dshp-auth-mask *,
+  .dshp-restart-mask,.dshp-restart-mask *,
+  [role=dialog],[role=dialog] *
+)) {
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
 }
 
 
@@ -17046,7 +17598,7 @@ const productTheme = createProductTheme();
       }
       if (blocks.length === 0) {
         blocks.push(h('div', { key: 'none', className: 'rt-kv' }, h('b', null, '证据'),
-          h('span', { style: { color: 'var(--dsw-alias-state-error-primary)' } }, '缺失 —— 未验证/无证据的漏洞不计入报告，请补 redteam_http_evidence_add')))
+          h('span', { style: { color: 'var(--ui-danger)' } }, '缺失 —— 未验证/无证据的漏洞不计入报告，请补 redteam_http_evidence_add')))
       }
       return h('div', { key: 'eviwrap' }, blocks)
     }
@@ -17852,7 +18404,7 @@ const productTheme = createProductTheme();
                   h('b', null, '执行 '),
                   s.tool
                     ? h('span', { className: 'rt-mono' }, s.tool)
-                    : h('span', { style: { color: 'var(--dsw-alias-state-warn-primary, #f59e0b)' } }, '未记录实际命令（redteam_chain_add 的 tool）')),
+                    : h('span', { style: { color: 'var(--ui-warning)' } }, '未记录实际命令（redteam_chain_add 的 tool）')),
                 s.tool ? h('div', { style: { marginTop: 3 } },
                   h('button', {
                     className: 'rt-btn', style: { padding: '0 12px', fontSize: 'var(--ui-text-control)' },
@@ -18796,6 +19348,20 @@ const productTheme = createProductTheme();
       const loadIntel = () => {
         api({ op: 'intelStatus' }).then((r) => { setIntel(r && r.ok !== false ? r : null) }, () => setIntel(null))
       }
+      const syncIntelData = () => {
+        setIntelBusy(true); setIntelMsg(null)
+        api({ op: 'intelSync' }).then((r) => {
+          if (!r || r.ok === false) {
+            setIntelMsg({ err: (r && r.error) || '底库同步失败，继续使用本地数据' })
+          } else {
+            const result = r.result || {}
+            const label = { updated: '底库已同步', skipped: '底库无需更新或未配置数据源', deferred: '底库被占用，稍后重试' }[result.action]
+            setIntelMsg({ ok: label || String(result.action || '未更新') })
+          }
+          loadIntel()
+        }, (e) => setIntelMsg({ err: String((e && e.message) || e) }))
+          .finally(() => setIntelBusy(false))
+      }
       const refreshIntel = (force) => {
         setIntelBusy(true); setIntelMsg(null)
         api({ op: 'intelRefresh', force: force === true }).then((r) => {
@@ -19013,7 +19579,27 @@ const productTheme = createProductTheme();
                     h('span', { className: 'rt-tag ' + (intel.kev.available && intel.kev.stale !== true ? 'rt-tag-live' : 'rt-tag-warn') },
                       intel.kev.available ? (intel.kev.count + ' 条' + (intel.kev.stale ? '（过期）' : '')) : '不可用')),
                   h('div', { className: 'rt-mono rt-settings-tool-path' },
-                    intel.kev.note || ('上次更新 ' + Math.round(intel.kev.age_hours || 0) + ' 小时前；命中只作优先级提示，不阻断开工')))) : null)),
+                    intel.kev.note || ('上次更新 ' + Math.round(intel.kev.age_hours || 0) + ' 小时前；命中只作优先级提示，不阻断开工')))) : null,
+              intel && intel.cve_db ? h('div', { className: 'rt-settings-field-list' },
+                h('div', { className: 'rt-settings-tool-row' },
+                  h('div', { className: 'rt-settings-tool-head' },
+                    h('span', { className: 'rt-settings-tool-name' }, '公开漏洞底库（只读）'),
+                    h('span', { className: 'rt-tag ' + (intel.cve_db.available && !intel.cve_db.stale ? 'rt-tag-live' : 'rt-tag-warn') },
+                      intel.cve_db.available ? intel.cve_db.count + ' 条' : '未就绪')),
+                  h('div', { className: 'rt-mono rt-settings-tool-path' },
+                    intel.cve_db.available
+                      ? ('构建于 ' + (intel.cve_db.age_days == null ? '未知时间' : Math.round(intel.cve_db.age_days) + ' 天前')
+                        + (intel.cve_db.stale ? '｜数据已过保鲜期' : '')
+                        + (intel.cve_db.templates ? '｜模板目录 ' + intel.cve_db.templates.count + ' 条' : '')
+                        + (intel.cve_db.exploits ? '｜公开利用目录元数据 ' + intel.cve_db.exploits.count + ' 条' : '')
+                        + (intel.cve_db.poc_github ? '｜GitHub 参考目录 ' + intel.cve_db.poc_github.count + ' 个 CVE' : ''))
+                      : (intel.cve_db.note || '尚未构建底库，也未配置镜像')),
+                  intel.cve_db.path ? h('div', { className: 'rt-mono rt-settings-tool-path' }, intel.cve_db.path) : null,
+                  intel.intel_sync && intel.intel_sync.base
+                    ? h('div', { className: 'rt-mono rt-settings-tool-path' },
+                      '数据源 ' + intel.intel_sync.base + '｜' + (intel.intel_sync.enabled ? '自动同步已启用' : '自动同步已关闭'),
+                      h('button', { className: 'rt-btn rt-settings-action', disabled: intelBusy, onClick: syncIntelData }, intelBusy ? '同步中…' : '同步底库'))
+                    : h('div', { className: 'rt-settings-card-copy' }, '底库数据不随包分发；可在本机构建，或配置 REDTEAM_INTEL_BASE 镜像。'))) : null)),
 
           h('section', { id: 'rt-settings-config', className: 'rt-settings-section', role: 'tabpanel', 'aria-labelledby': 'rt-settings-tab-config', hidden: settingsSection !== 'config' },
             h('div', { className: 'rt-settings-section-head' },
@@ -20391,6 +20977,10 @@ const productTheme = createProductTheme();
     function SessionMap(props) {
       const engagement = typeof props.engagement === 'string' ? props.engagement : ''
       const refreshKey = props.refreshKey || 0
+      /* Stage data is injected by the shell's teamBoard view.  The map remains
+         read-only and does not duplicate host-side task-stage judgement. */
+      const stages = props.stages && typeof props.stages === 'object' ? props.stages : null
+      const compact = props.compact === true
       const [snapshot, setSnapshot] = React.useState(null)
       const [selectedId, setSelectedId] = React.useState(null)
       const [query, setQuery] = React.useState('')
@@ -20610,9 +21200,9 @@ const productTheme = createProductTheme();
         const availableWidth = Math.max(180, viewport.clientWidth - 18)
         const availableHeight = Math.max(180, viewport.clientHeight - 18)
         const fitted = Math.max(0.08, Math.min(1.6, Math.min(availableWidth / fitGraph.width, availableHeight / fitGraph.height)))
-        const next = mode === 'readable' ? Math.max(0.8, fitted) : fitted
+        const next = mode === 'readable' && !compact ? Math.max(0.8, fitted) : fitted
         setZoom(next)
-        if (mode === 'readable' && fitted < 0.8) {
+        if (mode === 'readable' && fitted < 0.8 && !compact) {
           const node = fitGraph.nodes.find((item) => item.id === selectedId) || fitGraph.nodes.find((item) => item.depth === 0)
           setPan(node ? { x: Math.max(18, (viewport.clientWidth - SESSION_MAP_NODE_WIDTH * next) / 3) - node.x * next, y: 36 - node.y * next } : { x: 18, y: 18 })
         } else setPan({ x: (viewport.clientWidth - fitGraph.width * next) / 2 - (fitGraph.minX || 0) * next, y: (viewport.clientHeight - fitGraph.height * next) / 2 - (fitGraph.minY || 0) * next })
@@ -20850,9 +21440,14 @@ const productTheme = createProductTheme();
                   const nodeStatus = sessionMapActivityClass(node.activity)
                   const selectedClass = node.id === selectedId ? ' selected' : ''
                   const orphanClass = node.orphan ? ' orphan' : ''
+                  const stageClass = (id) => {
+                    const entry = stages && stages[id]
+                    if (!entry || typeof entry.tone !== 'string' || entry.tone === '') return ''
+                    return ' is-' + entry.tone
+                  }
                   return h('g', {
                     key: node.id,
-                    className: 'rt-session-map-node' + selectedClass + orphanClass,
+                    className: 'rt-session-map-node' + selectedClass + orphanClass + stageClass(node.id),
                     transform: 'translate(' + node.x + ',' + node.y + ')',
                     role: 'button',
                     tabIndex: 0,
@@ -20890,8 +21485,11 @@ const productTheme = createProductTheme();
                       (displayedStale ? '上次：' : '') + sessionMapActivityLabel(node.activity) + (node.declaredRole ? ' · ' + SESSION_MAP_ROLE_NAMES[node.declaredRole] : '')),
                     h('text', { className: 'rt-session-map-node-task', x: 14, y: 69 },
                       sessionMapNodeLabel(node.currentTask ? '待办：' + node.currentTask : node.taskProgress ? '待办 ' + node.taskProgress.completed + '/' + node.taskProgress.total + ' 已完成' : node.subagentTiming ? '已记录活动 ' + sessionMapDuration(node.subagentTiming.settledMs) : '未提供待办详情')),
-                    h('text', { className: 'rt-session-map-node-foot', x: 14, y: 94 },
-                      (node.orphan ? '父会话缺失' : node.subagentMode ? sessionMapModeLabel(node.subagentMode) : node.parentId ? '子会话' : '根会话') + ' · 下属 ' + (context.childCounts.get(node.id) || 0) + ' 个会话'))
+                    stages && stages[node.id]
+                      ? h('text', { className: 'rt-session-map-node-stage is-' + stages[node.id].tone, x: 14, y: 94 },
+                        sessionMapNodeLabel(stages[node.id].label + (stages[node.id].taskSubject ? ' · ' + stages[node.id].taskSubject : '')))
+                      : h('text', { className: 'rt-session-map-node-foot', x: 14, y: 94 },
+                        (node.orphan ? '父会话缺失' : node.subagentMode ? sessionMapModeLabel(node.subagentMode) : node.parentId ? '子会话' : '根会话') + ' · 下属 ' + (context.childCounts.get(node.id) || 0) + ' 个会话'))
                 })))),
             h('aside', { className: 'rt-session-map-detail', 'aria-label': '所选会话详情' },
               selected
@@ -21709,6 +22307,8 @@ const productTheme = createProductTheme();
       }
 
       return h('div', shellProps,
+        // Standalone/fullscreen mounts need their palette before the first paint.
+        embedded ? null : h('style', { 'data-redteam-ui-inline': '1' }, CSS),
         (full || embedded) ? null : h('div', { className: 'rt-grip', title: '拖动调整宽度', onMouseDown: startResizeLeft }),
         (full || embedded) ? null : h('div', { className: 'rt-resize-r', title: '拖动调整宽度', onMouseDown: startResizeRight }),
         (full || embedded) ? null : h('div', { className: 'rt-resize-b', title: '拖动调整高度', onMouseDown: startResizeBottom }),
@@ -21816,7 +22416,7 @@ const productTheme = createProductTheme();
      * @param ctx - 客户端根上下文。
      */
     function applyDrillParts() {
-      return { CSS: CSS, Panel: Panel, setUI: setUI, useUI: useUI, isFullWindow: isFullWindow, setDockWidth: setDockWidth };
+      return { CSS: CSS, Panel: Panel, SessionMap: SessionMap, setUI: setUI, useUI: useUI, isFullWindow: isFullWindow, setDockWidth: setDockWidth };
     }
 
     exports.inject = inject
@@ -21914,6 +22514,219 @@ const productTheme = createProductTheme();
 			return st;
 		}
 
+		/* Task / drill / tasks / map / clean workspace.
+		 * 三种呈现形态同一套内容：浮动窗（可拖、可缩放）、靠左停靠、靠右停靠。
+		 * 状态存在 PANE_KEY_V2 里，v1 的旧记录自动迁成浮动窗。 */
+		const PANE_KEY = "dsh-purge-safe-pane-v1";
+		const PANE_KEY_V2 = "dsh-purge-safe-pane-v2";
+		const PANE_KEY_V3 = "dsh-purge-safe-pane-v3";
+		const PANE_TABS = ["drill", "tasks", "map", "clean"];
+		/* 三种：浮动窗、贴左整高、贴右整高。旧存档里的 right 直接可用。 */
+		const PANE_MODES = ["float", "left", "right"];
+		/* 浮动窗沿用旧版 dock 的尺寸（620 × 72vh），不是缩小的那块小板。 */
+		const PANE_DEFAULT_W = 620;
+		const PANE_DEFAULT_H_RATIO = 0.72;
+		function paneDefaultGeom() {
+			const vw = typeof window !== "undefined" ? Number(window.innerWidth) || 1280 : 1280;
+			const vh = typeof window !== "undefined" ? Number(window.innerHeight) || 800 : 800;
+			const w = Math.min(Math.max(360, PANE_DEFAULT_W), Math.max(360, vw - 32));
+			const h = Math.max(260, Math.min(Math.round(vh * PANE_DEFAULT_H_RATIO), vh - 24));
+			return { x: Math.max(12, vw - w - 12), y: 12, w, h };
+		}
+		function clampPaneGeom(g) {
+			const vw = typeof window !== "undefined" ? Number(window.innerWidth) || 1280 : 1280;
+			const vh = typeof window !== "undefined" ? Number(window.innerHeight) || 800 : 800;
+			const w = Math.min(Math.max(320, Number(g && g.w) || PANE_DEFAULT_W), Math.max(320, vw - 16));
+			const h = Math.min(Math.max(220, Number(g && g.h) || 480), Math.max(220, vh - 16));
+			const x = Math.min(Math.max(4, Number(g && g.x) || 0), Math.max(4, vw - w - 4));
+			const y = Math.min(Math.max(4, Number(g && g.y) || 0), Math.max(4, vh - h - 4));
+			return { x, y, w, h };
+		}
+		function paneStateFrom(raw, keepGeom) {
+			const tab = PANE_TABS.includes(raw.tab) ? raw.tab : "drill";
+			const mode = PANE_MODES.includes(raw.mode) ? raw.mode : "float";
+			const width = Math.min(Math.max(360, Number(raw.width) || PANE_DEFAULT_W), Math.max(360, (window.innerWidth || 1280) - 120));
+			return {
+				open: raw.open === true,
+				tab,
+				width,
+				mode,
+				/* v2 的浮窗默认是缩小的 360×480；升到 v3 时丢弃旧 geom，用 620×72vh 重新摆。 */
+				geom: keepGeom && raw.geom ? clampPaneGeom(raw.geom) : paneDefaultGeom(),
+				autoSid: typeof raw.autoSid === "string" ? raw.autoSid : "",
+			};
+		}
+		function readPaneState() {
+			/* 默认是浮动窗：620 宽、72vh 高、右上角贴边 —— 与旧的「编辑面板」观感一致。 */
+			const base = { open: false, tab: "drill", width: PANE_DEFAULT_W, autoSid: "", mode: "float", geom: paneDefaultGeom() };
+			try {
+				const current = JSON.parse(window.localStorage.getItem(PANE_KEY_V3) || "null");
+				if (current && typeof current === "object") return paneStateFrom(current, true);
+				const previous = JSON.parse(window.localStorage.getItem(PANE_KEY_V2) || "null");
+				if (previous && typeof previous === "object") return paneStateFrom(previous, false);
+				/* v1 只有右侧固定这一种：继承开合、页签和宽度，但形态统一落到浮动窗，
+				   让用户自己决定要不要再贴边。 */
+				const legacy = JSON.parse(window.localStorage.getItem(PANE_KEY) || "null");
+				if (legacy && typeof legacy === "object") {
+					const tab = PANE_TABS.includes(legacy.tab) ? legacy.tab : "drill";
+					const width = Math.min(Math.max(360, Number(legacy.width) || PANE_DEFAULT_W), Math.max(360, (window.innerWidth || 1280) - 120));
+					return Object.assign({}, base, {
+						open: legacy.open === true,
+						tab,
+						width,
+						autoSid: typeof legacy.autoSid === "string" ? legacy.autoSid : "",
+					});
+				}
+			} catch { /* private mode or malformed state */ }
+			return base;
+		}
+		function writePaneState(st) {
+			const payload = {
+				open: st.open === true,
+				tab: PANE_TABS.includes(st.tab) ? st.tab : "drill",
+				width: st.width,
+				mode: PANE_MODES.includes(st.mode) ? st.mode : "float",
+				geom: clampPaneGeom(st.geom || paneDefaultGeom()),
+				autoSid: st.autoSid || "",
+			};
+			try { window.localStorage.setItem(PANE_KEY_V3, JSON.stringify(payload)); } catch { /* ignore */ }
+			try { window.localStorage.setItem(PANE_KEY_V2, JSON.stringify(payload)); } catch { /* ignore */ }
+			try { window.localStorage.setItem(PANE_KEY, JSON.stringify({ open: payload.open, tab: payload.tab, width: payload.width, autoSid: payload.autoSid })); } catch { /* ignore */ }
+		}
+		let paneBus = Object.assign(readPaneState(), { listeners: new Set() });
+		function setPane(patch) {
+			paneBus = Object.assign({}, paneBus, patch);
+			writePaneState(paneBus);
+			paneBus.listeners.forEach((fn) => { try { fn(paneBus); } catch { /* ignore */ } });
+		}
+		function usePane() {
+			const [st, setSt] = useState(paneBus);
+			useEffect(() => {
+				const fn = (next) => setSt(next);
+				paneBus.listeners.add(fn);
+				setSt(paneBus);
+				return () => { paneBus.listeners.delete(fn); };
+			}, []);
+			return st;
+		}
+		function openPane(tab, opts) {
+			const next = PANE_TABS.includes(tab) ? tab : "drill";
+			setPane(Object.assign({ open: true, tab: next }, opts || {}));
+			if (next === "drill") {
+				try { if (__dshPurgeDrill && __dshPurgeDrill.setUI) __dshPurgeDrill.setUI({ open: true }); } catch { /* ignore */ }
+			}
+			if (dockBus.open) setDock({ open: false, authOpen: false, pending: "tab" });
+		}
+		function autoOpenPaneFor(sid, active) {
+			if (!sid || active !== true || paneBus.autoSid === sid) return false;
+			setPane({ autoSid: sid });
+			if (paneBus.open) return false;
+			openPane(paneBus.tab || "drill");
+			return true;
+		}
+		const paneFrameOriginalMargins = new WeakMap();
+		function paneFrameTarget() {
+			if (typeof document === "undefined") return null;
+			const overlay = document.querySelector("[data-shell-overlay]");
+			const frame = overlay && overlay.parentElement;
+			return frame && frame.style ? frame : null;
+		}
+		function restorePaneFrame(frame) {
+			if (!frame) return;
+			const saved = paneFrameOriginalMargins.get(frame);
+			if (!saved) return;
+			frame.style.marginLeft = saved.left;
+			frame.style.marginRight = saved.right;
+			paneFrameOriginalMargins.delete(frame);
+		}
+		/* 停靠态（左/右）才给官方 frame 让宽度；浮动态一律不改 frame —— 浮动窗本来就该盖在正文上，
+		   把正文永久挤窄等于又造了一根固定侧栏，正是要去掉的那个形态。 */
+		function adoptPaneFrame(open, width, mode) {
+			const frame = paneFrameTarget();
+			if (!frame) return;
+			const settled = PANE_MODES.includes(mode) ? mode : "float";
+			if (!open || settled === "float") {
+				restorePaneFrame(frame);
+				return;
+			}
+			if (!paneFrameOriginalMargins.has(frame)) {
+				paneFrameOriginalMargins.set(frame, { left: frame.style.marginLeft || "", right: frame.style.marginRight || "" });
+			}
+			const saved = paneFrameOriginalMargins.get(frame);
+			const viewport = typeof window !== "undefined" ? Number(window.innerWidth) || 0 : 0;
+			const maxWidth = viewport > 640
+				? Math.min(760, Math.max(0, viewport - 16))
+				: Math.min(Math.max(0, viewport), 520);
+			const applied = Math.min(Math.max(0, Number(width) || 0), maxWidth);
+			frame.style.marginLeft = settled === "left" && applied > 0 ? Math.round(applied) + "px" : saved.left;
+			frame.style.marginRight = settled === "right" && applied > 0 ? Math.round(applied) + "px" : saved.right;
+		}
+
+		function fetchTeamBoard(sessionId) {
+			const sid = sessionId || currentSessionId(rewindSessions || (rewindHost && rewindHost.sessions)) || "";
+			return fetch("/redteam/api", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ op: "teamBoard", session: sid || undefined }),
+			}).then((response) => response.json()).then((r) => {
+				if (!r || r.ok === false) return { state: "fail", tasks: [], failure: String((r && r.error) || "teamBoard"), sessions: [], note: "" };
+				const tasks = Array.isArray(r.tasks) ? r.tasks : [];
+				const failure = Array.isArray(r.failures) && r.failures.length ? String(r.failures[0].failure || "") : "";
+				return {
+					state: failure ? "fail" : (Array.isArray(r.root_sessions) && r.root_sessions.length ? "on" : "idle"),
+					tasks,
+					failure,
+					sessions: Array.isArray(r.sessions) ? r.sessions : [],
+					note: String(r.note || ""),
+				};
+			}).catch(() => ({ state: "fail", tasks: [], failure: "网络", sessions: [], note: "" }));
+		}
+		function stageMapOf(board) {
+			const out = {};
+			const tasks = board && Array.isArray(board.tasks) ? board.tasks : [];
+			for (const task of tasks) {
+				if (!task || (!task.sessionId && !task.root)) continue;
+				const sessionId = String(task.sessionId || task.root);
+				const tone = task.stage === "ended" ? "done"
+					: task.stage === "working" ? "live"
+						: task.stage === "person/blocked" || task.stage === "person/failed" ? "fail"
+							: typeof task.stage === "string" && task.stage.indexOf("person/") === 0 ? "wait" : "quiet";
+				const label = task.stage === "ended" ? "已完成"
+					: task.stage === "person/answer" ? "等人提供"
+						: task.stage === "person/review" ? "等人验收"
+							: task.stage === "person/blocked" ? "受阻"
+								: task.stage === "person/failed" ? "失败待处理"
+									: task.stage === "working" ? "在跑"
+										: task.stage === "queued" ? "排队中"
+											: task.stage === "idle" ? "空闲" : "未接入";
+				/* teamBoard is already ordered by the host's STAGE_RANK. Keep the
+				   first task per session so the map and cards share that authority. */
+				if (out[sessionId]) continue;
+				out[sessionId] = { tone, label, taskSubject: String(task.subject || "") };
+			}
+			return out;
+		}
+		function fetchOrchestratorSettings() {
+			return fetch("/redteam/api", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ op: "orchestratorSettings" }),
+			}).then((response) => response.json()).then((r) => {
+				if (!r || r.ok === false) return { ok: false, board: true, clockMinutes: 20, error: String((r && (r.error || r.message)) || "orchestratorSettings") };
+				return { ok: true, board: r.board === true, clockMinutes: Number(r.clockMinutes ?? r.stallMinutes) || 0 };
+			}).catch((error) => ({ ok: false, board: true, clockMinutes: 20, error: String(error && error.message || "网络") }));
+		}
+		function saveOrchestratorSettings(patch) {
+			return fetch("/redteam/api", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(Object.assign({ op: "setOrchestratorSettings" }, patch)),
+			}).then((response) => response.json()).then((r) => {
+				if (!r || r.ok === false) return { ok: false, board: true, clockMinutes: 20, error: String((r && (r.error || r.message)) || "setOrchestratorSettings") };
+				return { ok: true, board: r.board === true, clockMinutes: Number(r.clockMinutes ?? r.stallMinutes) || 0 };
+			}).catch((error) => ({ ok: false, board: true, clockMinutes: 20, error: String(error && error.message || "网络") }));
+		}
+
 		/* ------------------------------------------------------------------
 		 * 「现在有什么需要我吗」—— 侧栏角标和悬浮提醒共用一个轮询。
 		 *
@@ -21977,6 +22790,10 @@ const productTheme = createProductTheme();
 			return snap;
 		}
 
+		function requestDockFullscreen() {
+			try { window.dispatchEvent(new Event("rt-open-full")); } catch { /* restricted host */ }
+		}
+
 		function requestDrill(kind) {
 			const pending = kind || "tab";
 			const openEnv = () => {
@@ -21987,11 +22804,16 @@ const productTheme = createProductTheme();
 				} catch { /* ignore */ }
 			};
 			if (readDrillAuth()) {
+				if (pending === "tab" && isRedteamModeActive()) {
+					openPane("drill");
+					try { if (__dshPurgeDrill && __dshPurgeDrill.setUI) __dshPurgeDrill.setUI({ open: true }); } catch { /* ignore */ }
+					return;
+				}
 				setDock({ open: true, tab: "drill", authOpen: false, pending: "tab" });
 				try { if (__dshPurgeDrill && __dshPurgeDrill.setUI) __dshPurgeDrill.setUI({ open: true }); } catch { /* ignore */ }
 				if (pending === "env") openEnv();
 				if (pending === "full") {
-					try { window.open(window.location.href.split("#")[0] + "#redteam-full", "_blank", "noopener"); } catch { /* ignore */ }
+					requestDockFullscreen();
 				}
 				return;
 			}
@@ -22009,6 +22831,14 @@ const productTheme = createProductTheme();
 		function toggleDock() {
 			if (dockBus.open) setDock({ open: false, authOpen: false, pending: "tab" });
 			else openDockClean();
+		}
+		function openNativeChipEntry() {
+			if (isRedteamModeActive()) {
+				if (readDrillAuth()) openPane("drill");
+				else requestDrill("tab");
+				return;
+			}
+			toggleDock();
 		}
 		syncDrillGrant();
 
@@ -22045,14 +22875,15 @@ const productTheme = createProductTheme();
 
 		function WelcomeNotice() {
 			const t = useT();
+			const { theme } = useProductTheme();
 			const [open, setOpen] = useState(() => !readWelcomeAck());
 			const [checked, setChecked] = useState(false);
 			if (!open) return null;
 			const repo = t("welcome.repo");
-			const node = h("div", { className: "dshp-auth-mask", role: "dialog", "aria-modal": "true" },
+			const node = h("div", { className: "dshp-auth-mask", "data-theme": theme, role: "dialog", "aria-modal": "true" },
 				h("div", { className: "dshp-auth-modal", style: { width: "min(560px,100%)" } },
 					h("h2", null, t("welcome.title")),
-					h("div", { className: "muted", style: { color: "var(--dsw-alias-label-secondary,#999)", fontSize: 12 } }, t("welcome.lead")),
+					h("div", { className: "muted", style: { color: "var(--ui-muted)", fontSize: 12 } }, t("welcome.lead")),
 					h("div", { className: "dshp-auth-warn" }, t("welcome.warn")),
 					h("div", { className: "dshp-auth-legal", style: { height: "auto", maxHeight: 280 } },
 						h("p", null, t("welcome.body")),
@@ -22061,7 +22892,7 @@ const productTheme = createProductTheme();
 								href: repo,
 								target: "_blank",
 								rel: "noopener noreferrer",
-								style: { color: "var(--dsw-alias-label-brand, #8fbf9a)", wordBreak: "break-all" },
+								style: { color: "var(--ui-link)", wordBreak: "break-all" },
 							}, repo),
 						),
 						h("h3", null, t("welcome.bans")),
@@ -22104,6 +22935,7 @@ const productTheme = createProductTheme();
 
 		function AuthGate(props) {
 			const t = useT();
+			const { theme } = useProductTheme();
 			const [left, setLeft] = useState(10);
 			const [readEnd, setReadEnd] = useState(false);
 			const [checks, setChecks] = useState({ read: false, scope: false, ban: false });
@@ -22141,10 +22973,10 @@ const productTheme = createProductTheme();
 				: (props.pending === "full"
 					? t("auth.ok.full")
 					: (props.pending === "env" ? t("auth.ok.env") : t("auth.ok.tab")));
-			return h("div", { className: "dshp-auth-mask", role: "dialog", "aria-modal": "true" },
+			return h("div", { className: "dshp-auth-mask", "data-theme": theme, role: "dialog", "aria-modal": "true" },
 				h("div", { className: "dshp-auth-modal" },
 					h("h2", null, t("auth.title")),
-					h("div", { className: "muted", style: { color: "var(--dsw-alias-label-secondary,#999)", fontSize: 12 } }, t("auth.lead")),
+					h("div", { className: "muted", style: { color: "var(--ui-muted)", fontSize: 12 } }, t("auth.lead")),
 					h("div", { className: "dshp-auth-warn" }, t("auth.warn")),
 					h("div", {
 						className: "dshp-auth-legal",
@@ -22152,7 +22984,7 @@ const productTheme = createProductTheme();
 						onScroll,
 						dangerouslySetInnerHTML: { __html: AUTH_LEGAL_HTML },
 					}),
-					h("div", { style: { color: "var(--dsw-alias-label-secondary,#999)", fontSize: 12 } }, hint),
+					h("div", { style: { color: "var(--ui-muted)", fontSize: 12 } }, hint),
 					h("div", { className: "dshp-auth-checks" },
 						[["read", "auth.check.read"], ["scope", "auth.check.scope"], ["ban", "auth.check.ban"]].map((row) =>
 							h("label", { key: row[0], className: locked ? "locked" : "" },
@@ -22176,13 +23008,14 @@ const productTheme = createProductTheme();
 								if (!ready) return;
 								writeDrillAuth(true);
 								const kind = props.pending || "tab";
-								setDock({ authOpen: false, open: true, tab: "drill", pending: "tab" });
+							if (kind === "tab" && isRedteamModeActive()) openPane("drill");
+							else setDock({ authOpen: false, open: true, tab: "drill", pending: "tab" });
 								try { if (__dshPurgeDrill && __dshPurgeDrill.setUI) __dshPurgeDrill.setUI({ open: true }); } catch { /* ignore */ }
 								if (kind === "env") {
 									try { if (__dshPurgeDrill && __dshPurgeDrill.setUI) __dshPurgeDrill.setUI({ open: true, tab: "env" }); } catch { /* ignore */ }
 								}
 								if (kind === "full") {
-									try { window.open(window.location.href.split("#")[0] + "#redteam-full", "_blank", "noopener"); } catch { /* ignore */ }
+						requestDockFullscreen();
 								}
 							},
 						}, okLabel),
@@ -22320,6 +23153,7 @@ const productTheme = createProductTheme();
 		/** 红队发送前门禁：未就绪 → 授权并打开环境适配；可确认跳过。 */
 		function EnvAdaptSendGate() {
 			const t = useT();
+			const { theme } = useProductTheme();
 			const [open, setOpen] = useState(false);
 			const [confirmSkip, setConfirmSkip] = useState(false);
 			const [status, setStatus] = useState(null);
@@ -22447,11 +23281,11 @@ const productTheme = createProductTheme();
 			if (!open) return null;
 
 			const message = (status && status.message) || t("envGate.lead");
-			return h("div", { className: "dshp-auth-mask dshp-env-gate", role: "dialog", "aria-modal": "true" },
+			return h("div", { className: "dshp-auth-mask dshp-env-gate", "data-theme": theme, role: "dialog", "aria-modal": "true" },
 				h("div", { className: "dshp-auth-modal", style: { width: "min(480px,100%)" } },
 					h("h2", null, t("envGate.title")),
 					h("div", { style: { fontSize: 13, lineHeight: 1.55 } }, message),
-					h("div", { style: { fontSize: 12, color: "var(--dsw-alias-label-secondary,#999)", lineHeight: 1.5 } }, t("envGate.kaliHint")),
+					h("div", { style: { fontSize: 12, color: "var(--ui-muted)", lineHeight: 1.5 } }, t("envGate.kaliHint")),
 					confirmSkip
 						? h("div", { className: "dshp-auth-warn" }, t("envGate.skipConfirm"))
 						: null,
@@ -22513,36 +23347,23 @@ const productTheme = createProductTheme();
 			const t = useT();
 			const st = useDock();
 			const [geom, setGeom] = useState(() => loadDockGeom());
-			const [dockTheme, setDockTheme] = useState(detectHostTheme);
+			const { theme: dockTheme } = useProductTheme();
 			const [currentSid, setCurrentSid] = useState("");
 			const [currentTitle, setCurrentTitle] = useState("");
+			const dockRef = useRef(null);
+			const fullscreen = useWorkbenchFullscreen(react, dockRef);
 			useEffect(() => {
-				const sync = () => setDockTheme(detectHostTheme());
-				sync();
-				const obs = new MutationObserver(sync);
-				if (document.body) obs.observe(document.body, { attributes: true, attributeFilter: ["data-ds-dark-theme", "class", "style"] });
-				obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-ds-dark-theme", "class", "style"] });
-				const timer = window.setInterval(sync, 1500);
-				return () => { obs.disconnect(); window.clearInterval(timer); };
+				const onFull = () => { fullscreen.enter(); };
+				window.addEventListener("rt-open-full", onFull);
+				return () => window.removeEventListener("rt-open-full", onFull);
 			}, []);
+			useEffect(() => { if (!st.open && fullscreen.isExpanded()) fullscreen.exit(); }, [st.open]);
 			useEffect(() => {
-				let uiTag = document.querySelector('style[data-dsh-purge-safe-ui="1"]');
-				if (!uiTag) {
-					uiTag = document.createElement("style");
-					uiTag.setAttribute("data-dsh-purge-safe-ui", "1");
-					uiTag.textContent = PURGE_CSS;
-					document.head.append(uiTag);
-				}
-				if (!__dshPurgeDrill || !__dshPurgeDrill.CSS) return undefined;
-				const styleTag = document.createElement("style");
-				styleTag.setAttribute("data-dsh-purge-safe-drill", "1");
-				styleTag.textContent = __dshPurgeDrill.CSS;
-				document.head.append(styleTag);
 				const widthTag = document.createElement("style");
 				widthTag.setAttribute("data-dsh-purge-safe-dock-w", "1");
 				widthTag.textContent = ":root{--dshp-dock-w:" + geom.w + "px;--dshp-dock-h:" + geom.h + "px}";
 				document.head.append(widthTag);
-				return () => { styleTag.remove(); widthTag.remove(); };
+				return () => { widthTag.remove(); };
 			}, []);
 			useEffect(() => {
 				const tick = () => {
@@ -22560,7 +23381,7 @@ const productTheme = createProductTheme();
 				if (tag) tag.textContent = ":root{--dshp-dock-w:" + geom.w + "px;--dshp-dock-h:" + geom.h + "px}";
 			}, [geom]);
 			useEffect(() => {
-				const onResize = () => setGeom((g) => clampDockGeom(g));
+				const onResize = () => { if (!fullscreen.isExpanded()) setGeom((g) => clampDockGeom(g)); };
 				window.addEventListener("resize", onResize);
 				return () => window.removeEventListener("resize", onResize);
 			}, []);
@@ -22574,7 +23395,7 @@ const productTheme = createProductTheme();
 				setDock({ tab: "clean", authOpen: false, pending: "tab" });
 			};
 			const startDrag = (e) => {
-				if (e.button !== 0) return;
+				if (fullscreen.isExpanded() || e.button !== 0) return;
 				if (e.target && e.target.closest && e.target.closest("button,a,input,select,textarea,label")) return;
 				e.preventDefault();
 				const sx = e.clientX;
@@ -22655,9 +23476,12 @@ const productTheme = createProductTheme();
 				? h(SettingsRoot, { t })
 				: (readDrillAuth() && __dshPurgeDrill.Panel
 					? h(__dshPurgeDrill.Panel, { embedded: true, sessionId: currentSid || null, sessionTitle: currentTitle || "" })
-					: h("div", { style: { padding: 16, color: "var(--dsw-alias-label-secondary)" } }, t("dock.unauthorized")));
+					: h("div", { style: { padding: 16, color: "var(--ui-muted)" } }, t("dock.unauthorized")));
 			const panel = h("div", {
-				className: "dshp-dock",
+				className: "dshp-dock dshp-studio-dock",
+				ref: dockRef,
+				"data-fullscreen": fullscreen.expanded ? "true" : "false",
+				"data-dshp-studio": st.tab === "clean" ? "clean" : "drill",
 				"data-theme": dockTheme === "white" ? "white" : "dusk",
 				"data-open": st.open ? "1" : "0",
 				style: {
@@ -22669,30 +23493,35 @@ const productTheme = createProductTheme();
 					height: geom.h + "px",
 				},
 			},
+				h("style", { "data-dsh-purge-safe-ui": "1" }, PURGE_CSS),
+				__dshPurgeDrill && __dshPurgeDrill.CSS
+					? h("style", { "data-dsh-purge-safe-drill": "1" }, __dshPurgeDrill.CSS)
+					: null,
 				h("div", { className: "dshp-dock-head", onMouseDown: startDrag, title: "按住拖动面板" },
 					h("b", null, "dsh-purge-safe"),
+					h("div", { className: "dshp-dock-modes", role: "tablist" },
+						h("button", {
+							type: "button",
+							className: "dshp-dock-tab" + (st.tab === "clean" ? " on" : ""),
+							role: "tab",
+							"aria-selected": st.tab === "clean" ? "true" : "false",
+							onClick: () => onTab("clean"),
+						}, t("dock.clean")),
+						h("button", {
+							type: "button",
+							className: "dshp-dock-tab" + (st.tab === "drill" ? " on" : ""),
+							role: "tab",
+							"aria-selected": st.tab === "drill" ? "true" : "false",
+							title: readDrillAuth() ? t("dock.drill") : (t("dock.drill") + " · " + t("dock.unauthorized")),
+							onClick: () => onTab("drill"),
+						}, t("dock.drill")),
+					),
 					h("span", { style: { flex: 1 } }),
-					st.tab === "drill" && readDrillAuth()
-						? h("button", { type: "button", onClick: () => requestDrill("full") }, t("dock.full"))
+					h(ProductThemeControl, { t }),
+					(fullscreen.expanded || (st.tab === "drill" && readDrillAuth()))
+						? h("button", { type: "button", "aria-pressed": fullscreen.expanded, onClick: () => fullscreen.expanded ? fullscreen.exit() : requestDrill("full") }, t(fullscreen.expanded ? "dock.exitFull" : "dock.full"))
 						: null,
-					h("button", { type: "button", onClick: () => setDock({ open: false, authOpen: false, tab: "clean", pending: "tab" }) }, t("dock.close")),
-				),
-				h("div", { className: "dshp-dock-tabs", role: "tablist" },
-					h("button", {
-						type: "button",
-						className: "dshp-dock-tab" + (st.tab === "clean" ? " on" : ""),
-						role: "tab",
-						"aria-selected": st.tab === "clean" ? "true" : "false",
-						onClick: () => onTab("clean"),
-					}, t("dock.clean")),
-					h("button", {
-						type: "button",
-						className: "dshp-dock-tab" + (st.tab === "drill" ? " on" : ""),
-						role: "tab",
-						"aria-selected": st.tab === "drill" ? "true" : "false",
-						title: readDrillAuth() ? t("dock.drill") : (t("dock.drill") + " · " + t("dock.unauthorized")),
-						onClick: () => onTab("drill"),
-					}, t("dock.drill")),
+					h("button", { type: "button", onClick: () => { fullscreen.exit(); setDock({ open: false, authOpen: false, tab: "clean", pending: "tab" }); } }, t("dock.close")),
 				),
 				h("div", { className: "dshp-dock-body" }, body),
 				h("div", { className: "dshp-dock-resize-l", title: "拖动调整宽度", onMouseDown: startResizeLeft }),
@@ -22707,7 +23536,7 @@ const productTheme = createProductTheme();
 				const rd = require("react-dom");
 				if (rd && typeof rd.createPortal === "function" && typeof document !== "undefined" && document.body) {
 					portal = rd.createPortal(panel, document.body);
-					if (authNode) authPortal = rd.createPortal(authNode, document.body);
+					if (authNode) authPortal = rd.createPortal(authNode, fullscreenPortalHost());
 				}
 			} catch { /* host 可能没暴露 react-dom */ }
 			return h(react.Fragment, null,
@@ -22819,6 +23648,317 @@ const productTheme = createProductTheme();
 			return true;
 		}
 
+		/** Task / drill / session-map workspace — floating, docked left, or docked right. */
+		function RightPane() {
+			const t = useT();
+			const st = usePane();
+			const { theme } = useProductTheme();
+			const [sid, setSid] = useState("");
+			const [title, setTitle] = useState("");
+			const [board, setBoard] = useState({ state: "off", tasks: [], failure: "", sessions: [], note: "" });
+			const [orch, setOrch] = useState({ ok: false, board: true, clockMinutes: 20 });
+			const [orchDraft, setOrchDraft] = useState("");
+			const [orchError, setOrchError] = useState("");
+			const [bound, setBound] = useState(null);
+			const [mapTick, setMapTick] = useState(0);
+			const boardSeqRef = useRef(0);
+			const boardInflightRef = useRef(false);
+			const orchSeqRef = useRef(0);
+			const paneResizeCleanupRef = useRef(null);
+			const disposePaneResize = () => {
+				if (paneResizeCleanupRef.current) paneResizeCleanupRef.current();
+				paneResizeCleanupRef.current = null;
+			};
+			const emptyBoard = { state: "off", tasks: [], failure: "", sessions: [], note: "" };
+			const refreshBoard = () => {
+				if (!sid) {
+					boardSeqRef.current += 1;
+					boardInflightRef.current = false;
+					setBoard(emptyBoard);
+					return Promise.resolve(emptyBoard);
+				}
+				if (boardInflightRef.current) return Promise.resolve(null);
+				const seq = ++boardSeqRef.current;
+				boardInflightRef.current = true;
+				return fetchTeamBoard(sid).then((next) => {
+					if (seq === boardSeqRef.current) setBoard(next);
+					return next;
+				}).finally(() => {
+					if (seq === boardSeqRef.current) boardInflightRef.current = false;
+				});
+			};
+
+			useEffect(() => {
+				let dead = false;
+				const tick = () => {
+					const sessions = rewindSessions || (rewindHost && rewindHost.sessions);
+					const nextSid = currentSessionId(sessions) || "";
+					if (dead) return;
+					setSid(nextSid);
+					setTitle(currentSessionTitle(sessions) || "");
+					autoOpenPaneFor(nextSid, isRedteamModeActive());
+					if (paneBus.open) adoptPaneFrame(true, paneBus.width, paneBus.mode);
+				};
+				tick();
+				const timer = window.setInterval(tick, 1200);
+				return () => { dead = true; window.clearInterval(timer); adoptPaneFrame(false, 0, "float"); };
+			}, []);
+
+			useEffect(() => {
+			if (!st.open) disposePaneResize();
+			}, [st.open]);
+			useEffect(() => () => disposePaneResize(), []);
+
+			useEffect(() => {
+				boardSeqRef.current += 1;
+				boardInflightRef.current = false;
+				if (!st.open || (st.tab !== "tasks" && st.tab !== "map") || !sid) {
+					setBoard(emptyBoard);
+					return () => { boardSeqRef.current += 1; boardInflightRef.current = false; };
+				}
+				let dead = false;
+				const pull = () => { if (!dead) refreshBoard(); };
+				pull();
+				const timer = window.setInterval(pull, 3000);
+				return () => {
+					dead = true;
+					window.clearInterval(timer);
+					boardSeqRef.current += 1;
+					boardInflightRef.current = false;
+				};
+			}, [st.open, st.tab, sid]);
+
+			useEffect(() => {
+				if (!st.open || st.tab !== "tasks") return undefined;
+				let dead = false;
+				const seq = ++orchSeqRef.current;
+				fetchOrchestratorSettings().then((next) => {
+					if (dead || seq !== orchSeqRef.current) return;
+					setOrch(next);
+					setOrchError(next.ok ? "" : String(next.error || "orchestratorSettings"));
+					if (next.ok) setOrchDraft(String(next.clockMinutes || "0"));
+				});
+				return () => {
+					dead = true;
+					if (seq === orchSeqRef.current) orchSeqRef.current += 1;
+				};
+			}, [st.open, st.tab]);
+
+			useEffect(() => {
+				if (!st.open || st.tab !== "map" || !sid) { setBound(null); return undefined; }
+				let dead = false;
+				fetch("/redteam/api", {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ op: "sessionBinding", session: sid }),
+				}).then((response) => response.json()).then((r) => {
+					if (!dead) setBound(r && r.ok !== false && typeof r.bound === "string" && r.bound ? r.bound : null);
+				}).catch(() => { if (!dead) setBound(null); });
+				return () => { dead = true; };
+			}, [st.open, st.tab, sid, mapTick]);
+
+			useEffect(() => {
+			adoptPaneFrame(st.open, st.width, st.mode);
+			const onResize = () => {
+				if (!paneBus.open) return;
+				adoptPaneFrame(true, paneBus.width, paneBus.mode);
+				if (paneBus.mode === "float") setPane({ geom: clampPaneGeom(paneBus.geom) });
+			};
+			window.addEventListener("resize", onResize);
+			return () => {
+				window.removeEventListener("resize", onResize);
+				adoptPaneFrame(false, 0, "float");
+			};
+			}, [st.open, st.width, st.mode]);
+
+			if (!st.open) return null;
+			const mode = PANE_MODES.includes(st.mode) ? st.mode : "float";
+			const geom = clampPaneGeom(st.geom || paneDefaultGeom());
+			const paneMaxWidth = () => Math.min(760, Math.max(300, (window.innerWidth || 1280) - 16));
+			/* 停靠形态只调宽度（拖右沿），浮动形态同时调宽高（拖右下角）。 */
+			const startResize = (event) => {
+				if (!event || event.button !== 0 || typeof window === "undefined") return;
+				event.preventDefault();
+				event.stopPropagation();
+				disposePaneResize();
+				const sx = event.clientX;
+				const sy = event.clientY;
+				const w0 = st.width;
+				const h0 = geom.h;
+				const move = (ev) => {
+					if (mode === "float") {
+						const w = Math.min(Math.max(300, w0 + (ev.clientX - sx)), paneMaxWidth());
+						const h = Math.min(Math.max(220, h0 + (ev.clientY - sy)), Math.max(220, (window.innerHeight || 800) - geom.y - 8));
+						setPane({ geom: clampPaneGeom({ x: geom.x, y: geom.y, w, h }) });
+						return;
+					}
+					/* 贴边时拖外侧那条边变宽：贴左用右沿（dx 正向变宽），贴右用左沿（dx 反向变宽）。 */
+					const delta = mode === "right" ? (sx - ev.clientX) : (ev.clientX - sx);
+					setPane({ width: Math.min(Math.max(300, w0 + delta), paneMaxWidth()) });
+				};
+				const up = () => {
+					window.removeEventListener("mousemove", move);
+					window.removeEventListener("mouseup", up);
+				};
+				window.addEventListener("mousemove", move);
+				window.addEventListener("mouseup", up);
+				paneResizeCleanupRef.current = up;
+			};
+			const startPaneDrag = (event) => {
+				if (mode !== "float" || !event || event.button !== 0 || typeof window === "undefined") return;
+				if (event.target && event.target.closest && event.target.closest("button,a,input,select,textarea,label")) return;
+				event.preventDefault();
+				const sx = event.clientX;
+				const sy = event.clientY;
+				const ox = geom.x;
+				const oy = geom.y;
+				const move = (ev) => setPane({ geom: clampPaneGeom({ x: ox + (ev.clientX - sx), y: oy + (ev.clientY - sy), w: geom.w, h: geom.h }) });
+				const up = () => {
+					window.removeEventListener("mousemove", move);
+					window.removeEventListener("mouseup", up);
+				};
+				window.addEventListener("mousemove", move);
+				window.addEventListener("mouseup", up);
+			};
+			const setMode = (next) => {
+				if (!PANE_MODES.includes(next) || next === mode) return;
+				disposePaneResize();
+				/* 从浮窗切回停靠时把宽度带过去，避免忽然变成默认 520。 */
+				const patch = { mode: next };
+				if (next === "float") {
+					/* 贴边宽度带进浮窗，位置沿用上次浮窗落点。 */
+					patch.width = Math.max(st.width, geom.w);
+					patch.geom = clampPaneGeom({ x: geom.x, y: geom.y, w: Math.max(st.width, geom.w), h: geom.h });
+				} else {
+					patch.width = Math.min(Math.max(300, geom.w), Math.min(760, Math.max(300, (window.innerWidth || 1280) - 16)));
+				}
+				setPane(patch);
+			};
+			const modeButton = (id, label) => h("button", {
+				key: id,
+				type: "button",
+				className: "dshp-pane-mode" + (mode === id ? " on" : ""),
+				role: "radio",
+				"aria-checked": mode === id ? "true" : "false",
+				title: t("pane.mode") + "：" + label,
+				onClick: () => setMode(id),
+			}, label);
+			const toneOf = (stage) => stage === "ended" ? "done"
+				: stage === "working" ? "live"
+					: stage === "person/blocked" || stage === "person/failed" ? "fail"
+						: typeof stage === "string" && stage.indexOf("person/") === 0 ? "wait" : "quiet";
+			const stageText = (stage) => stage === "ended" ? t("pane.stage.ended")
+				: stage === "person/answer" ? t("pane.stage.answer")
+					: stage === "person/review" ? t("pane.stage.review")
+						: stage === "person/blocked" ? t("pane.stage.blocked")
+							: stage === "person/failed" ? t("pane.stage.failed")
+								: stage === "working" ? t("pane.stage.working")
+									: stage === "queued" ? t("pane.stage.queued")
+										: stage === "idle" ? t("pane.stage.idle") : t("pane.stage.unknown");
+			const saveOrch = () => {
+				const seq = ++orchSeqRef.current;
+				const minutes = Number(orchDraft);
+				return saveOrchestratorSettings({ stallMinutes: Number.isFinite(minutes) ? minutes : 0 }).then((next) => {
+					if (seq !== orchSeqRef.current) return next;
+					setOrch(next);
+					if (next.ok) {
+						setOrchError("");
+						setOrchDraft(String(next.clockMinutes || "0"));
+					} else setOrchError(String(next.error || "setOrchestratorSettings"));
+					return next;
+				});
+			};
+			const tabButton = (id, label) => h("button", {
+				key: id,
+				type: "button",
+				className: "dshp-pane-tab" + (st.tab === id ? " on" : ""),
+				role: "tab",
+				"aria-selected": st.tab === id ? "true" : "false",
+				onClick: () => setPane({ tab: id }),
+			}, label);
+
+			let body;
+			if (st.tab === "drill") {
+				/* 复用 dock-body 那一套内嵌演练台样式，浮窗里就是之前那个完整页面，不再被挤成小板。 */
+				body = readDrillAuth() && __dshPurgeDrill && __dshPurgeDrill.Panel
+					? h("div", { className: "dshp-pane-body dshp-dock-body" }, h(__dshPurgeDrill.Panel, { embedded: true, sessionId: sid || null, sessionTitle: title || "" }))
+					: h("div", { className: "dshp-pane-scroll" },
+						h("div", { className: "dshp-pane-empty" }, t("dock.unauthorized")),
+						h("div", { className: "dshp-pane-actions" }, h("button", { type: "button", className: "primary", onClick: () => requestDrill("tab") }, t("pane.authorize"))));
+			} else if (st.tab === "tasks") {
+				const tasks = board.tasks || [];
+				body = h("div", { className: "dshp-pane-scroll" },
+					board.failure ? h("div", { className: "dshp-pane-empty" }, t("pane.tasksFail") + "：" + board.failure) : null,
+					!tasks.length ? h("div", { className: "dshp-pane-empty" }, board.state === "on" ? t("pane.tasksEmpty") : t("pane.tasksOff")) : null,
+					tasks.map((task) => h("article", { key: String(task.root || task.sessionId || "") + ":" + String(task.id || task.subject || ""), className: "dshp-pane-task dshp-pane-task-" + toneOf(task.stage) },
+						h("div", { className: "dshp-pane-task-head" },
+							h("div", { className: "dshp-pane-task-name" }, task.subject || task.id || ""),
+							h("span", { className: "dshp-pane-chip is-" + toneOf(task.stage) }, stageText(task.stage))),
+						task.description ? h("p", { className: "dshp-pane-task-desc" }, task.description) : null,
+						h("div", { className: "dshp-pane-task-meta" },
+							h("span", null, t("pane.owner") + "：" + (task.ownerName || t("pane.unowned"))),
+							task.stageReason ? h("span", null, "· " + task.stageReason) : null,
+							Array.isArray(task.blockedBy) && task.blockedBy.length ? h("span", null, "· 前置 " + task.blockedBy.length) : null,
+							Array.isArray(task.needs) && task.needs.length ? h("span", { className: "dshp-pane-needs" }, "· 需要：" + task.needs.map((item) => (item && (item.detail || item.kind)) || "").filter(Boolean).join("、")) : null))),
+										h("div", { className: "dshp-pane-actions" }, h("button", { type: "button", onClick: refreshBoard }, t("pane.refresh"))),
+					h("div", { className: "dshp-pane-orch" },
+						h("div", { className: "dshp-pane-orch-row" }, h("span", { className: "dshp-pane-orch-label" }, t("pane.orch.board")), h("span", { className: "dshp-pane-orch-fixed" }, t("pane.orch.always"))),
+						h("p", { className: "dshp-pane-orch-hint" }, t("pane.orch.boardHint")),
+									orchError ? h("p", { className: "dshp-pane-error" }, t("pane.orch.error") + "：" + orchError) : null,
+						h("div", { className: "dshp-pane-orch-row" },
+							h("label", { className: "dshp-pane-orch-label", htmlFor: "dshp-orch-minutes" }, t("pane.orch.stall")),
+							h("input", { id: "dshp-orch-minutes", type: "number", min: "0", max: "240", value: orchDraft, onChange: (event) => setOrchDraft(event.target.value) }),
+											h("button", { type: "button", onClick: saveOrch }, t("pane.orch.save"))),
+						h("p", { className: "dshp-pane-orch-hint" }, t("pane.orch.stallHint"))));
+			} else if (st.tab === "clean") {
+				/* 授权之后演练台接管了整窗，清洗页必须还能从分栏进来，否则无从卸载。 */
+				body = h("div", { className: "dshp-pane-body dshp-dock-body dshp-pane-clean" }, h(SettingsRoot, { t }));
+			} else {
+				body = __dshPurgeDrill && __dshPurgeDrill.SessionMap
+					? h("div", { className: "dshp-pane-scroll dshp-pane-map" }, h(__dshPurgeDrill.SessionMap, { engagement: bound || "", refreshKey: mapTick, stages: stageMapOf(board), compact: true }))
+					: h("div", { className: "dshp-pane-scroll" }, h("div", { className: "dshp-pane-empty" }, t("pane.mapMissing")));
+			}
+			const paneStyle = mode === "float"
+				? { left: geom.x + "px", top: geom.y + "px", right: "auto", bottom: "auto", width: geom.w + "px", height: geom.h + "px" }
+				: (mode === "right" ? { right: "0px", width: st.width + "px" } : { left: "0px", width: st.width + "px" });
+			const node = h("aside", {
+				className: "dshp-dock dshp-pane",
+				"data-theme": theme === "white" ? "white" : "dusk",
+				"data-open": "1",
+				"data-pane-mode": mode,
+				role: "complementary",
+				"aria-label": "任务与演练台分栏",
+				style: paneStyle,
+			},
+				h("div", { className: "dshp-pane-head", onMouseDown: startPaneDrag, title: mode === "float" ? t("pane.dragHint") : undefined },
+					h("span", { className: "dshp-pane-brand", "aria-hidden": "true" }, String(title || "P").slice(0, 1)),
+					h("b", null, t("dock.toggle")),
+					h("span", { className: "dshp-pane-sub", title: title || "" }, title || (bound || t("pane.noSession"))),
+					h("span", { className: "dshp-pane-modes", role: "radiogroup", "aria-label": t("pane.mode") },
+						modeButton("float", t("pane.mode.float")),
+						modeButton("left", t("pane.mode.left")),
+						modeButton("right", t("pane.mode.right"))),
+					h("span", { className: "dshp-pane-tools" },
+						h(ProductThemeControl, { t }),
+						readDrillAuth() && __dshPurgeDrill && __dshPurgeDrill.Panel
+							? h("button", { type: "button", title: t("pane.fullHint"), onClick: () => { setPane({ open: false }); requestDrill("full"); } }, t("pane.full"))
+							: null,
+						(st.tab === "tasks" || st.tab === "map") ? h("button", { type: "button", onClick: () => st.tab === "tasks" ? refreshBoard() : setMapTick((value) => value + 1) }, t("pane.refresh")) : null,
+						h("button", { type: "button", title: t("pane.close"), onClick: () => setPane({ open: false }) }, "×"))),
+				h("div", { className: "dshp-pane-tabs", role: "tablist" },
+					tabButton("drill", t("pane.drill")),
+					tabButton("tasks", t("pane.tasks")),
+					tabButton("map", t("pane.map")),
+					tabButton("clean", t("pane.clean"))),
+				body,
+				h("div", { className: "dshp-pane-resize", title: mode === "float" ? "拖动调整大小" : "拖动调整宽度", onMouseDown: startResize }));
+			try {
+				const rd = require("react-dom");
+				if (rd && typeof rd.createPortal === "function" && typeof document !== "undefined" && document.body) return rd.createPortal(node, fullscreenPortalHost());
+			} catch { /* host may not expose react-dom */ }
+			return node;
+		}
+
 		function NativeChipMount(props) {
 			const kind = props.kind;
 			const t = useT();
@@ -22889,7 +24029,7 @@ const productTheme = createProductTheme();
 				type: "button",
 				className: (kind === "hero" ? "dshp-hero-chip-btn" : "dshp-tab-btn") + (st.open ? " on" : ""),
 				title: t("dock.newSession"),
-				onClick: () => toggleDock(),
+				onClick: openNativeChipEntry,
 			}, t("dock.newSession"));
 			try {
 				const rd = require("react-dom");
@@ -23059,6 +24199,7 @@ const productTheme = createProductTheme();
 		function AttentionToast() {
 			const a = useAttention();
 			const t = useT();
+			const { theme } = useProductTheme();
 			/* snoozed = 提醒恢复的时间戳；0 表示没稍后。 */
 			const [snoozeUntil, setSnoozeUntil] = useState(0);
 			const [pos, setPos] = useState(readAttentionPos);
@@ -23195,7 +24336,7 @@ const productTheme = createProductTheme();
 			const live = (dragging && dragRef.current && dragRef.current.last) || pos;
 			const style = live ? { left: live.x, top: live.y, right: "auto", bottom: "auto" } : undefined;
 
-			return h("div", {
+				const capsule = h("div", {
 				ref: capRef,
 				className: "dshp-attn-capsule"
 					+ (urgent ? " is-urgent" : "")
@@ -23244,6 +24385,14 @@ const productTheme = createProductTheme();
 					h("div", { className: "dshp-attn-capsule-foot" },
 						h("button", { type: "button", className: "dshp-attn-capsule-go", onClick: handleAttention }, t("attn.toast.go")),
 						h("button", { type: "button", className: "dshp-attn-capsule-later", onClick: quiet ? restore : snooze }, quiet ? t("attn.toast.restore") : t("attn.toast.later")))));
+				const portalHost = h("div", { className: "dshp-root dshp-attn-portal", "data-theme": theme }, capsule);
+				try {
+					const rd = require("react-dom");
+					if (rd && typeof rd.createPortal === "function" && typeof document !== "undefined" && document.body) {
+						return rd.createPortal(portalHost, document.body);
+					}
+				} catch { /* host 可能没暴露 react-dom */ }
+				return portalHost;
 		}
 
 		function installRewindUi(ctx) {
@@ -23280,7 +24429,7 @@ const productTheme = createProductTheme();
 				name: "shell.overlay",
 				id: "dsh-purge-safe-dock",
 				order: 50,
-			}, () => h(react.Fragment, null, h(WelcomeNotice), h(PurgeDock), h(HeroNewSessionMount), h(TabRowPurgeMount), h(EnvAdaptSendGate), h(AttentionToast))));
+			}, () => h(react.Fragment, null, h(WelcomeNotice), h(PurgeDock), h(RightPane), h(HeroNewSessionMount), h(TabRowPurgeMount), h(EnvAdaptSendGate), h(AttentionToast))));
 			/* 侧栏角标已退役：胶囊本身就在画布上、还能拖到任意位置，
 			   再往官方侧栏塞一枚角标就是两个入口抢同一件事。提醒只留胶囊一个出口。 */
 			try {

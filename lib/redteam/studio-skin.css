@@ -247,7 +247,7 @@
   background-color: var(--rt-studio-dark-hover) !important;
   box-shadow: none !important;
   color: var(--rt-studio-dark-ink) !important;
-  color-scheme: dark;
+  color-scheme: var(--ui-scheme);
   font-size:var(--ui-text-control);
   text-align: left;
   text-overflow: ellipsis;

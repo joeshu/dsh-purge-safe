@@ -458,3 +458,6 @@
   padding:10px 16px;
   border-top:1px solid var(--ui-line);
 }
+/* Summary numbers use readable semantic tones in both product themes. */
+:is(.rt-dock,.rt-full) .rt-ov-metric-ok .rt-ov-metric-value { color:var(--ui-success); }
+:is(.rt-dock,.rt-full) .rt-ov-metric-warn .rt-ov-metric-value { color:var(--ui-warning); }
