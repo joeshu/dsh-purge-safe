@@ -7,12 +7,12 @@
 <p align="center"><strong>Version 2.0.0</strong></p>
 
 <p align="center">
-  <em>Full-featured edition + Super Agent support · DSH 0.2.2-rc.3 · Optimized prompts, fewer refusals, improved stability.</em>
+  <em>Full-featured edition + Super Agent support · DSH 0.2.2-rc.5 · Optimized prompts, fewer refusals, improved stability.</em>
 </p>
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat" alt="Apache-2.0"></a>
-  <a href="https://www.deepseek.com/harness/"><img src="https://img.shields.io/badge/dsh-0.2.2--rc.3-blue" alt="DSH"></a>
+  <a href="https://www.deepseek.com/harness/"><img src="https://img.shields.io/badge/dsh-0.2.2--rc.5-blue" alt="DSH"></a>
   <br>
   <img src="https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=fff" alt="Node.js">
   <img src="https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=000" alt="JavaScript">
@@ -49,14 +49,14 @@ Join our Telegram community to learn, exchange ideas, get technical support, and
 
 **Full-featured edition + Super Agent support**
 
-- Adapted for **DeepSeek Harness 0.2.2-rc.3**.
+- Adapted for **DeepSeek Harness 0.2.2-rc.5**.
 - Added **Super Agent** support.
 - Optimized prompts.
 - Reduced refusal rate and improved stability.
 
 ## What this is
 
-**dsh-purge-safe** is a cybersecurity red-team plugin for the official [DeepSeek Harness](https://www.deepseek.com/harness/) already installed on your machine. This full-featured edition targets **DSH 0.2.2-rc.3** and adds **Super Agent** support. Official **Web** (`dsh web`) and the official **desktop EXE** are both supported. Install and Apply them separately.
+**dsh-purge-safe** is a cybersecurity red-team plugin for the official [DeepSeek Harness](https://www.deepseek.com/harness/) already installed on your machine. This full-featured edition targets **DSH 0.2.2-rc.5** and adds **Super Agent** support. Official **Web** (`dsh web`) and the official **desktop EXE** are both supported. Install and Apply them separately.
 
 Harness does more than forward a prompt. It rewrites prompts, approval gates, sandbox policy, and session migration at runtime. Asking only “will the model answer” treats a host-layer block as a model refusal. This plugin separates those two layers on your own install, for controlled evaluation and for seeing which default policy is too tight.
 
@@ -129,7 +129,7 @@ This repo is [Apache License 2.0](./LICENSE). Forks and redistributions must kee
 
 ## Supported hosts
 
-**DSH 0.2.2-rc.3** is the target for this edition, including Super Agent support. Official Web and desktop installations are managed separately.
+**DSH 0.2.2-rc.5** is the target for this edition, including Super Agent support. Official Web and desktop installations are managed separately.
 
 Unmatched patches remain pending or skipped; files are not rewritten blindly.
 

@@ -1,7 +1,7 @@
 {
   "name": "dsh-purge-safe",
-  "version": "2.0.1",
-  "description": "DeepSeek Harness 破甲：让所有模型都能破甲，不同模型可换不同提示词；默认提示词面向国模「鸢码」。满血版本 + Super Agent 适配，面向 DSH 0.2.2-rc.3；优化提示词，降低拒绝率，提升稳定性。",
+  "version": "2.0.2",
+  "description": "DeepSeek Harness 破甲：让所有模型都能破甲，不同模型可换不同提示词；默认提示词面向国模「鸢码」。满血版本 + Super Agent 适配，面向 DSH 0.2.2-rc.5；优化提示词，降低拒绝率，提升稳定性。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -85,9 +85,7 @@
       "platform": "web",
       "inject": [
         "@deepseek-ai/dsh-client-connection",
-        "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-client-ui-settings"
       ]
     }
@@ -98,8 +96,8 @@
   "engines": {
     "node": ">=18"
   },
-  "dshTarget": "0.2.2-rc.3",
+  "dshTarget": "0.2.2-rc.5",
   "dshTargets": [
-    "0.2.2-rc.3"
+    "0.2.2-rc.5"
   ]
 }

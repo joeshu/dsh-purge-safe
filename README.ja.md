@@ -7,12 +7,12 @@
 <p align="center"><strong>バージョン 2.0.0</strong></p>
 
 <p align="center">
-  <em>フル機能版 + Super Agent 対応 · DSH 0.2.2-rc.3 · プロンプト最適化、拒否率低減、安定性向上。</em>
+  <em>フル機能版 + Super Agent 対応 · DSH 0.2.2-rc.5 · プロンプト最適化、拒否率低減、安定性向上。</em>
 </p>
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat" alt="Apache-2.0"></a>
-  <a href="https://www.deepseek.com/harness/"><img src="https://img.shields.io/badge/dsh-0.2.2--rc.3-blue" alt="DSH"></a>
+  <a href="https://www.deepseek.com/harness/"><img src="https://img.shields.io/badge/dsh-0.2.2--rc.5-blue" alt="DSH"></a>
   <br>
   <img src="https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=fff" alt="Node.js">
   <img src="https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=000" alt="JavaScript">
@@ -49,14 +49,14 @@ Telegram コミュニティで最新情報を確認し、学習・情報交換�
 
 **フル機能版 + Super Agent 対応**
 
-- **DeepSeek Harness 0.2.2-rc.3** に対応。
+- **DeepSeek Harness 0.2.2-rc.5** に対応。
 - **Super Agent** を追加。
 - プロンプトを最適化。
 - 拒否率を低減し、安定性を向上。
 
 ## これは何か
 
-**dsh-purge-safe** は、ローカルにインストールされた公式 [DeepSeek Harness](https://www.deepseek.com/harness/) 向けのサイバーセキュリティ評価プラグインです。このフル機能版は **DSH 0.2.2-rc.3** と **Super Agent** に対応します。公式 **Web**（`dsh web`）と公式**デスクトップ EXE** に対応し、インストールと Apply は別々に行います。
+**dsh-purge-safe** は、ローカルにインストールされた公式 [DeepSeek Harness](https://www.deepseek.com/harness/) 向けのサイバーセキュリティ評価プラグインです。このフル機能版は **DSH 0.2.2-rc.5** と **Super Agent** に対応します。公式 **Web**（`dsh web`）と公式**デスクトップ EXE** に対応し、インストールと Apply は別々に行います。
 
 Harness は単にプロンプトを転送するだけではありません。プロンプトの書き換え、承認ゲート、サンドボックスポリシー、セッション移行を実行時に行います。「モデルは答えるか」だけを問うと、ホスト層のブロックをモデルの拒否と取り違えてしまいます。このプラグインは、あなた自身のインストール環境でこの 2 つの層を分離し、制御された評価や、どのデフォルトポリシーが過度に厳しいかを確認するために使います。
 
@@ -129,7 +129,7 @@ Harness は単にプロンプトを転送するだけではありません。プ
 
 ## 対応ホスト
 
-この版は **DSH 0.2.2-rc.3** と **Super Agent** を対象とします。公式 Web とデスクトップは別々にインストールし、適用します。
+この版は **DSH 0.2.2-rc.5** と **Super Agent** を対象とします。公式 Web とデスクトップは別々にインストールし、適用します。
 
 一致しないパッチは pending または skipped として保持され、ファイルを盲目的に書き換えません。
 

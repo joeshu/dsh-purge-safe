@@ -7,12 +7,12 @@
 <p align="center"><strong>Version 2.0.0</strong></p>
 
 <p align="center">
-  <em>满血版本 + Super Agent 适配 · DSH 0.2.2-rc.3 · 优化提示词，降低拒绝率，提升稳定性。</em>
+  <em>满血版本 + Super Agent 适配 · DSH 0.2.2-rc.5 · 优化提示词，降低拒绝率，提升稳定性。</em>
 </p>
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat" alt="Apache-2.0"></a>
-  <a href="https://www.deepseek.com/harness/"><img src="https://img.shields.io/badge/dsh-0.2.2--rc.3-blue" alt="DSH"></a>
+  <a href="https://www.deepseek.com/harness/"><img src="https://img.shields.io/badge/dsh-0.2.2--rc.5-blue" alt="DSH"></a>
   <br>
   <img src="https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=fff" alt="Node.js">
   <img src="https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=000" alt="JavaScript">
@@ -49,14 +49,14 @@
 
 **满血版本 + Super Agent 适配**
 
-- 适配 **DeepSeek Harness 0.2.2-rc.3**。
+- 适配 **DeepSeek Harness 0.2.2-rc.5**。
 - 新增 **Super Agent**。
 - 优化提示词。
 - 降低拒绝率，提升稳定性。
 
 ## 介绍
 
-**dsh-purge-safe** 是装在本机官方 [DeepSeek Harness](https://www.deepseek.com/harness/) 上的网络安全红队评测插件。本次为**满血版本 + Super Agent 适配**，面向 **DSH 0.2.2-rc.3**，新增 **Super Agent**，优化提示词、降低拒绝率并提升稳定性。支持官方 **Web**（`dsh web`）和官方**桌面端**（EXE），两边分开安装、分开应用。
+**dsh-purge-safe** 是装在本机官方 [DeepSeek Harness](https://www.deepseek.com/harness/) 上的网络安全红队评测插件。本次为**满血版本 + Super Agent 适配**，面向 **DSH 0.2.2-rc.5**，新增 **Super Agent**，优化提示词、降低拒绝率并提升稳定性。支持官方 **Web**（`dsh web`）和官方**桌面端**（EXE），两边分开安装、分开应用。
 
 Harness 不只是把问题交给模型。它还会在运行时改提示词、审批门、沙箱和会话格式。只看「模型答不答」，会把宿主拦截误当成模型拒绝。这个插件在你自己的安装里把这两层分开，用来做受控评测，也用来看默认策略该不该收紧。
 
@@ -131,7 +131,7 @@ Harness 不只是把问题交给模型。它还会在运行时改提示词、审
 
 ## 适配范围
 
-本次适配 **DSH 0.2.2-rc.3**，包含 **Super Agent** 适配。支持官方 Web 与官方桌面端，两边分开安装、分开应用。
+本次适配 **DSH 0.2.2-rc.5**，包含 **Super Agent** 适配。支持官方 Web 与官方桌面端，两边分开安装、分开应用。
 
 宿主原文对不上时，补丁会显示待应用或跳过，不会盲目改写文件。
 

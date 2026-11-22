@@ -8,7 +8,7 @@
 | 名称 | 位置 | 版本 / 状态 |
 | --- | --- | --- |
 | 本插件 | `lib/redteam/`、`skills/redteam/`、`presets/redteam/` | `dsh-purge-safe` 1.1.75（`package.json` 仍写 `0.0.1`，不动） |
-| 宿主 | DeepSeek Harness | 0.2.2-rc.3 |
+| 宿主 | DeepSeek Harness | 0.2.2-rc.5 |
 | superagent 原型 | `.scratch/superagent-proto`（[Jueze-2019/dsh-redteam-mode] 之外的另一套） | README 自称 "Research prototype for reference only" |
 
 阅读顺序：§1 先给结论表，§2 讲清两者根本不是一类东西，§3 逐个环节对照（这是本文主体），
